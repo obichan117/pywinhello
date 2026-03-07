@@ -38,47 +38,24 @@ def _cmd_ping(args: argparse.Namespace) -> None:
 
 
 def _cmd_setup_pico(args: argparse.Namespace) -> None:
-    """Guide user through Pico firmware setup."""
-    import shutil
+    """Set up a Pico as a USB HID keyboard bridge."""
     from pathlib import Path
 
-    firmware_dir = Path(__file__).parent.parent.parent / "firmware" / "pico_hid"
+    from pywinhello.setup import run_setup, verify_pico
 
-    # Detect CIRCUITPY drive
-    circuitpy = None
-    for letter in "DEFGHIJKLMNOPQRSTUVWXYZ":
-        candidate = Path(f"{letter}:\\")
-        if (candidate / "boot_out.txt").exists():
-            circuitpy = candidate
-            break
+    if args.verify_only:
+        print("Verifying Pico HID bridge...")
+        ok = verify_pico()
+        sys.exit(0 if ok else 1)
 
-    if circuitpy is None:
-        print("CIRCUITPY drive not found.")
-        print("1. Flash CircuitPython UF2 to your Pico first")
-        print("2. Ensure the Pico is connected and CIRCUITPY is mounted")
-        sys.exit(1)
-
-    print(f"Found CIRCUITPY at {circuitpy}")
-
-    # Check for adafruit_hid
-    hid_lib = circuitpy / "lib" / "adafruit_hid"
-    if not hid_lib.exists():
-        print(f"\nadafruit_hid not found at {hid_lib}")
-        print("Download from: https://circuitpython.org/libraries")
-        print("Copy the adafruit_hid/ folder to CIRCUITPY/lib/")
-        sys.exit(1)
-
-    # Copy firmware files
-    for name in ("boot.py", "code.py"):
-        src = firmware_dir / name
-        dst = circuitpy / name
-        if not src.exists():
-            print(f"Firmware file not found: {src}", file=sys.stderr)
-            sys.exit(1)
-        shutil.copy2(src, dst)
-        print(f"Copied {name} -> {dst}")
-
-    print("\nFirmware installed. Reset the Pico, then run: pywinhello ping")
+    drive = Path(args.drive) if args.drive else None
+    ok = run_setup(
+        drive=drive,
+        board=args.board,
+        bundle_tag=args.bundle_tag,
+        skip_verify=args.skip_verify,
+    )
+    sys.exit(0 if ok else 1)
 
 
 def main() -> None:
@@ -96,7 +73,29 @@ def main() -> None:
     ping_p = sub.add_parser("ping", help="Ping Pico HID bridge")
     ping_p.add_argument("-p", "--port", default="auto", help="COM port (default: auto-detect)")
 
-    sub.add_parser("setup-pico", help="Install firmware on connected Pico")
+    setup_p = sub.add_parser(
+        "setup-pico",
+        help="Install firmware on connected Pico",
+        description="Set up a Raspberry Pi Pico as a USB HID keyboard bridge",
+    )
+    setup_p.add_argument(
+        "--drive", default=None, help="CIRCUITPY drive path (auto-detected if omitted)"
+    )
+    setup_p.add_argument(
+        "--board",
+        default=None,
+        choices=["pico", "pico_w", "pico2", "pico2_w"],
+        help="Board variant for UF2 download (auto-detected if omitted)",
+    )
+    setup_p.add_argument(
+        "--bundle-tag", default=None, help="CircuitPython bundle release tag (default: latest)"
+    )
+    setup_p.add_argument(
+        "--verify-only", action="store_true", help="Only verify PING/PONG, skip firmware copy"
+    )
+    setup_p.add_argument(
+        "--skip-verify", action="store_true", help="Skip the PING verification step after setup"
+    )
 
     args = parser.parse_args()
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pywinhello"
-version = "0.1.0"
+version = "0.2.0"
 description = "Automate Windows Hello PIN entry via USB HID keyboard (Raspberry Pi Pico)"
 readme = "README.md"
 license = "MIT"
