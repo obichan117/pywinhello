@@ -1,0 +1,46 @@
+site_name: pywinhello
+site_description: Automate Windows Hello PIN entry via USB HID keyboard
+site_url: https://obichan117.github.io/pywinhello
+repo_url: https://github.com/obichan117/pywinhello
+repo_name: obichan117/pywinhello
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - navigation.sections
+
+nav:
+  - Home: index.md
+  - Quick Start: quickstart.md
+  - Hardware Setup: hardware.md
+  - API Reference: api.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_source: false
+            show_root_heading: true
+            heading_level: 3
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true

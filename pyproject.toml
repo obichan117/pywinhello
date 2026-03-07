@@ -25,9 +25,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+cli = [
+    "pyyaml>=6.0",
+]
 dev = [
     "pytest>=8.0",
     "pytest-cov",
+    "pyyaml>=6.0",
     "ruff>=0.4",
     "mypy>=1.10",
 ]
@@ -56,7 +60,7 @@ select = ["E", "F", "I", "W", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["--import-mode=importlib"]
+addopts = ["--import-mode=importlib", "--ignore=tests/integration"]
 
 [tool.mypy]
 python_version = "3.11"

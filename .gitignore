@@ -11,3 +11,4 @@ build/
 *.log
 config.yaml
 .env
+site/

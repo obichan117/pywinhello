@@ -8,16 +8,18 @@ Progressive API:
 - ``HIDKeyboard`` — raw serial HID bridge
 """
 
+from pywinhello.config import load_config
 from pywinhello.hid import HIDKeyboard
 from pywinhello.models import AppConfig, AuthEvent, MonitorConfig
 from pywinhello.monitor import HelloMonitor
 from pywinhello.pin import enter_pin
 
 __all__ = [
-    "AuthEvent",
     "AppConfig",
-    "MonitorConfig",
+    "AuthEvent",
     "HelloMonitor",
     "HIDKeyboard",
+    "MonitorConfig",
     "enter_pin",
+    "load_config",
 ]
