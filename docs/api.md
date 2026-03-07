@@ -35,3 +35,15 @@
 ::: pywinhello.dialog.wait_for_dismiss
 
 ::: pywinhello.dialog.get_owner_exe
+
+## Pico Setup
+
+::: pywinhello.setup.run_setup
+
+::: pywinhello.setup.verify_pico
+
+::: pywinhello.setup.find_circuitpy_drive
+
+::: pywinhello.setup.find_rpi_rp2_drive
+
+::: pywinhello.setup.copy_firmware

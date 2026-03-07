@@ -12,6 +12,7 @@ Windows Hello's Credential Dialog is protected by **UIPI** (User Interface Privi
 - **Two-pass detection** — handles both PIN mode and fingerprint mode automatically
 - **Progressive API** — from raw HID keyboard to full daemon monitor
 - **Zero polling** — uses WinEvent hooks for instant dialog detection
+- **Automated Pico setup** — flashes CircuitPython, downloads libraries, installs firmware in one command
 
 ## Progressive API
 
