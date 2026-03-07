@@ -36,15 +36,40 @@ def focus() -> bool:
     HID keystrokes go to the focused window, so the credential dialog
     must have focus before sending PIN input.
 
+    Uses AttachThreadInput to bypass Windows' foreground lock restriction.
+    Without this, SetForegroundWindow silently fails when the calling
+    process doesn't own the current foreground window.
+
     Returns:
         True if the dialog was found and focused.
     """
     hwnd = find_dialog_hwnd()
     if not hwnd:
         return False
-    ctypes.windll.user32.SetForegroundWindow(hwnd)
-    logger.info("Focused Windows Security dialog (hwnd=%d)", hwnd)
-    return True
+
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+
+    fg_hwnd = user32.GetForegroundWindow()
+    fg_tid = user32.GetWindowThreadProcessId(fg_hwnd, None)
+    my_tid = kernel32.GetCurrentThreadId()
+
+    attached = False
+    if fg_tid != my_tid:
+        attached = bool(user32.AttachThreadInput(my_tid, fg_tid, True))
+
+    user32.BringWindowToTop(hwnd)
+    user32.ShowWindow(hwnd, 5)  # SW_SHOW
+    result = user32.SetForegroundWindow(hwnd)
+
+    if attached:
+        user32.AttachThreadInput(my_tid, fg_tid, False)
+
+    if result:
+        logger.info("Focused Windows Security dialog (hwnd=%d)", hwnd)
+    else:
+        logger.warning("SetForegroundWindow failed for hwnd=%d", hwnd)
+    return bool(result)
 
 
 def get_owner_exe(hwnd: int | None = None) -> str | None:
