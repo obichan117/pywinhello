@@ -12,3 +12,14 @@ build/
 config.yaml
 .env
 site/
+
+# Firmware build artifacts
+firmware/build/
+firmware/*.uf2
+
+# Installer output
+installer/Output/
+
+# OS
+Thumbs.db
+.DS_Store
