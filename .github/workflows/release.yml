@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download installer
+        uses: actions/download-artifact@v4
+        with:
+          name: installer
+          path: release/
+
+      - name: Download firmware
+        uses: actions/download-artifact@v4
+        with:
+          name: firmware
+          path: release/
+
+      - name: Generate manifest.json
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          FW_HASH=$(sha256sum release/*.uf2 | head -1 | cut -d' ' -f1)
+          cat > release/manifest.json << MANIFEST
+          {
+            "version": "${VERSION}",
+            "software_version": "${VERSION}",
+            "firmware_version": "${VERSION}",
+            "firmware_hash_rp2040": "sha256:${FW_HASH}",
+            "changelog_ja": "",
+            "changelog_en": "",
+            "force_update": false,
+            "min_protocol_version": 2
+          }
+          MANIFEST
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            echo "changes<<EOF" >> $GITHUB_OUTPUT
+            git log ${PREV_TAG}..HEAD --pretty=format:"- %s" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "changes=Initial release" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/pywinhello_setup.exe
+            release/manifest.json
+            release/*.uf2
+          body: |
+            ## pywinhello ${{ github.ref_name }}
+
+            ${{ steps.changelog.outputs.changes }}
+
+            ### ダウンロード / Download
+            `pywinhello_setup.exe` をダウンロードして実行してください。
+            Download and run `pywinhello_setup.exe`.
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'rc') || contains(github.ref_name, 'beta') }}

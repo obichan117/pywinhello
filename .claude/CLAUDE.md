@@ -1,49 +1,112 @@
 # pywinhello
 
-Automate Windows Hello PIN entry via USB HID keyboard (Raspberry Pi Pico).
+Raspberry Pi Pico as a physical "key" for Windows Hello automation. Plug in = automation on, unplug = off.
 
-## Quick Start
+## Status: v2 rewrite in progress
+
+v1 (current code): Python library + CircuitPython firmware — CLI-based, PIN in env var.
+v2 (target): End-user Windows app + C firmware — GUI setup wizard, PIN on device, auto-updates.
+
+## Quick Start (v1, still active)
 
 ```bash
 uv sync                          # Install deps
-uv run pytest                    # Run all 45 unit tests
+uv run pytest                    # Run unit tests
 uv run ruff check                # Lint
 uv run mkdocs build --strict     # Build docs
 ```
 
-## Architecture
+## v2 Architecture (target)
 
 ```
-src/pywinhello/
-├── models.py    # AuthEvent, AppConfig, MonitorConfig (dataclasses)
-├── hid.py       # HIDKeyboard + find_pico_port (pyserial)
-├── dialog.py    # find/focus/wait/get_owner_exe (ctypes win32)
-├── pin.py       # enter_pin() — two-pass orchestration
-├── monitor.py   # HelloMonitor — WinEvent hook daemon
-├── config.py    # load_config() — YAML loader (PyYAML optional)
-├── setup.py     # Full Pico setup: UF2 flash, bundle download, firmware copy
-├── cli.py       # CLI: serve, ping, setup-pico
-└── _data/
-    └── firmware/
-        ├── boot.py   # CircuitPython boot config (dual CDC)
-        └── code.py   # Pico main loop (HID bridge protocol)
+pywinhello/
+├── firmware/                    # C (Pico SDK) — replaces CircuitPython
+│   ├── CMakeLists.txt
+│   ├── src/
+│   │   ├── main.c              # Init USB, serial, main loop
+│   │   ├── hid.c               # TinyUSB HID keyboard
+│   │   ├── storage.c           # LittleFS config/PIN/log
+│   │   ├── serial_proto.c      # Serial command handler
+│   │   ├── crypto.c            # AES-256 PIN encryption (mbedtls)
+│   │   ├── wifi.c              # CYW43 + NTP (W only, auto-detected)
+│   │   ├── scheduler.c         # Wake timer (W only)
+│   │   └── bootloader.c        # OTA serial flash updates
+│   └── include/
+├── pc/                          # Python — monitor + settings GUI
+│   ├── src/pywinhello/
+│   │   ├── monitor/            # Background process
+│   │   │   ├── usb_watcher.py  # WMI USB plug/unplug events
+│   │   │   ├── lock_detector.py    # Win32 lock screen detection
+│   │   │   ├── hello_detector.py   # WinEvent Windows Security hook
+│   │   │   ├── scheduler_sync.py   # Task Scheduler create/delete
+│   │   │   ├── updater.py         # GitHub release auto-updater
+│   │   │   └── service.py         # Main orchestrator loop
+│   │   ├── serial/
+│   │   │   ├── protocol.py    # Serial command/response
+│   │   │   ├── device.py      # Pico detection + handshake
+│   │   │   └── flasher.py     # OTA firmware push
+│   │   ├── gui/
+│   │   │   ├── app.py         # CustomTkinter root
+│   │   │   ├── wizard/        # First-run setup steps
+│   │   │   ├── settings/      # Settings panel tabs
+│   │   │   ├── tests/         # Notepad test, lock test
+│   │   │   └── i18n/          # ja.json, en.json
+│   │   ├── dialog.py          # Windows Security detection (from v1)
+│   │   ├── pin.py             # Focus guards + orchestration (from v1)
+│   │   └── models.py          # Dataclasses
+│   ├── tests/
+│   └── pyproject.toml
+├── installer/
+│   ├── pywinhello.iss          # Inno Setup script
+│   └── assets/                 # Icons, license
+├── .github/workflows/          # CI/CD
+└── pyproject.toml              # Workspace root
 ```
 
-Dependency graph: `cli → {monitor, setup} → pin → dialog + hid → models`
+## Core Design Principles
 
-## Key Technical Details
+- **Pico = physical key**: PIN, schedule, timing, app whitelist, logs ALL stored on Pico flash
+- **PC stores nothing**: monitor is a thin bridge, settings app reads/writes Pico over serial
+- **Plug in = armed, unplug = disarmed**: Task Scheduler tasks created/deleted on USB events
+- **Single firmware**: auto-detects W vs non-W by probing CYW43 chip
+- **Beginner-first**: Japanese GUI, no CLI, no config files, no daemon concept exposed
 
-- **UIPI bypass**: `Credential Dialog Xaml Host` blocks SendInput; Pico USB HID bypasses
-- **Two-pass PIN entry**: try PIN directly → fingerprint fallback via pin_select_keys
-- **No chooser ENTER**: corrupts WebAuthn assertion
-- **Process detection**: `GetWindow(GW_OWNER)` → PID → exe name
-- **WinEvent hooks**: `EVENT_OBJECT_CREATE` for zero-polling detection
-- **Firmware bundled as package data**: `importlib.resources` resolves `_data/firmware/`
+## Serial Protocol (v2)
+
+```
+PC → Pico:
+  PING                    → OK:pywinhello,1.0.0,pico_w
+  GET_CONFIG              → OK:<config.json>
+  SET_CONFIG:<json>       → OK
+  SETUP_PIN:<pin>         → OK
+  CLEAR                   → OK (wipe everything)
+  UNLOCK                  → OK (type PIN + Enter for lock screen)
+  HELLO                   → OK (type PIN for Windows Hello dialog)
+  GET_LOG                 → OK:<base64 log>
+  FLASH:<size>            → READY (then binary stream)
+  STATUS                  → OK:pin=yes,schedule=07:45,wifi=ok
+```
+
+## Key Technical Details (preserved from v1)
+
+- **UIPI bypass**: Credential Dialog blocks SendInput; USB HID bypasses
+- **Focus guards**: 3-layer verification before PIN typing (prevents leak)
+- **Two-pass PIN**: try PIN → fingerprint fallback → ESCAPE → retry
+- **WinEvent hooks**: `EVENT_OBJECT_CREATE` for zero-polling dialog detection
 - **Pico USB IDs**: VID=0x239A, PIDs={0x8058, 0x8120, 0x80F4, 0x8150, 0x8160}
-- **Protocol**: text over CDC serial — `TYPE:1234\n` → `OK\n`
+
+## Task Tracking
+
+```
+tasks/
+├── done/        # TASK-001 to TASK-009 (v1 complete)
+├── todo/        # TASK-010 to TASK-029 (v2 backlog)
+└── in-progress/ # Currently active
+```
 
 ## Testing
 
-- 45 unit tests, all mock win32/serial deps
-- Integration tests in `tests/integration/` (excluded from default pytest)
+- v1: 45 unit tests, all pass
+- v2: 4-layer strategy (unit → hardware integration → OS state → firmware on-device)
 - `--import-mode=importlib` required in pytest config
+- Hardware tests marked `@pytest.mark.hardware`, excluded from CI

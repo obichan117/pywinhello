@@ -1,119 +1,132 @@
 # pywinhello
 
-Automate Windows Hello PIN entry via USB HID keyboard (Raspberry Pi Pico).
+Raspberry Pi Picoを「物理キー」として、Windows Helloの自動化を実現します。
 
-[![PyPI](https://img.shields.io/pypi/v/pywinhello)](https://pypi.org/project/pywinhello/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/obichan117/pywinhello/actions/workflows/ci.yml/badge.svg)](https://github.com/obichan117/pywinhello/actions)
 
-Windows Hello's Credential Dialog is protected by UIPI — no software input method
-(SendInput, pyautogui, pywinauto) can type into it. `pywinhello` uses a Raspberry Pi
-Pico as a USB HID keyboard to bypass this restriction and enter PINs automatically.
+---
 
-## Features
+**[English](#english)** | **日本語（デフォルト）**
 
-- **Process-aware**: identifies which app triggered Windows Hello, enters the correct PIN
-- **Two-pass detection**: handles both PIN mode and fingerprint mode automatically
-- **Progressive API**: from raw HID keyboard to full daemon monitor
-- **Zero polling**: uses WinEvent hooks for instant dialog detection
-- **Automated Pico setup**: flashes CircuitPython, downloads libraries, installs firmware
+## 何をするもの？
 
-## Install
+Picoデバイスをパソコンに挿すだけで、Windows Helloの認証を全自動化します。
 
-```bash
-pip install pywinhello
-```
+- **ロック画面** → 自動でPINを入力してログイン
+- **Windows Helloダイアログ** → アプリごとに自動でPINを入力
+- **毎朝のスリープ復帰** → スケジュールで自動起動 → 自動ログイン
 
-## Hardware
+## なぜ必要？
 
-Any Raspberry Pi Pico variant (Pico, Pico W, Pico 2, Pico 2 W) — ~$4.
+Windowsの認証画面（Credential Dialog）は **UIPI** という仕組みで保護されており、
+ソフトウェアだけではPINを入力できません。
+pywinhelloはRaspberry Pi PicoをUSBキーボードとして使うことで、この制限を突破します。
 
-### Automated Setup
-
-```bash
-# Hold BOOTSEL on Pico, plug in USB, then:
-pywinhello setup-pico
-```
-
-This handles everything: flashing CircuitPython, downloading `adafruit_hid`, and installing the HID bridge firmware.
-
-### Verify
-
-```bash
-pywinhello ping
-# PONG from COM8
-```
-
-## Quick Start
-
-```python
-from pywinhello import enter_pin
-
-# One-shot: enter PIN when dialog appears
-event = enter_pin("1234")
-print(event.dialog_dismissed)  # True if PIN was accepted
-```
-
-### Process-aware daemon
-
-Create `config.yaml`:
-
-```yaml
-apps:
-  - exe: MarketSpeed2.exe
-    pin: "1234"
-  - exe: chrome.exe
-    pin: "5678"
-```
-
-```python
-from pywinhello import HelloMonitor, load_config
-
-config = load_config("config.yaml")
-monitor = HelloMonitor(config)
-monitor.serve(on_event=lambda e: print(e))
-```
-
-### CLI
-
-```bash
-# Run monitor daemon
-pywinhello serve -c config.yaml
-
-# Ping Pico
-pywinhello ping
-
-# Set up Pico (flash + firmware)
-pywinhello setup-pico
-```
-
-## Architecture
+## どう動く？
 
 ```
-Host (Python)          Pico (CircuitPython)       Windows
-┌──────────┐  serial   ┌──────────┐  USB HID   ┌──────────┐
-│ pywinhello│─────────→│ code.py  │───────────→│ Credential│
-│           │ TYPE:1234 │ keyboard │ keystrokes  │  Dialog   │
-│           │←─────────│          │             │           │
-│           │    OK     │          │             │           │
-└──────────┘           └──────────┘             └──────────┘
+挿す → 自動化ON        抜く → 自動化OFF
 ```
 
-### Progressive API
-
 ```
-serve()              Daemon — handles all dialogs automatically
-  └── handle_next()    One-shot — wait for next dialog
-       └── enter_pin()   Immediate — type PIN into current dialog
-            └── HIDKeyboard  Raw — serial HID bridge
+Picoデバイス（物理キー）           パソコン
+┌─────────────────────┐          ┌──────────────────────┐
+│  PIN（暗号化保存）    │   USB    │  バックグラウンド監視   │
+│  スケジュール         │ ◄──────► │  ├ ロック画面 → UNLOCK │
+│  アプリ設定           │  シリアル │  ├ Hello認証 → HELLO  │
+│  イベントログ         │          │  └ 自動アップデート     │
+│                      │          │                       │
+│  キーボードとして      │          │  設定アプリ（GUI）     │
+│  PINを自動入力        │          │  └ Picoの設定を読み書き │
+└─────────────────────┘          └──────────────────────┘
 ```
 
-## How it works
+**PINはデバイス本体にのみ暗号化保存** — パソコンやインターネットには一切保存されません。
 
-1. **Dialog detection** — `SetWinEventHook(EVENT_OBJECT_CREATE)` detects `Credential Dialog Xaml Host` instantly
-2. **Process identification** — `GetWindow(GW_OWNER)` traces the dialog to the requesting process
-3. **Focus** — `AttachThreadInput` + `SetForegroundWindow` brings the dialog to focus
-4. **Two-pass entry** — Types PIN directly; if dialog persists, sends ESCAPE to navigate from fingerprint to PIN mode, then retries
-5. **HID bypass** — Physical keyboard input from the Pico bypasses UIPI restrictions
+## 対応デバイス
+
+| デバイス | 対応 | Wi-Fi | おすすめ |
+|---------|------|-------|---------|
+| Raspberry Pi Pico | ✓ | — | |
+| Raspberry Pi Pico H | ✓ | — | |
+| Raspberry Pi Pico W | ✓ | ✓ | ★ おすすめ |
+| Raspberry Pi Pico 2 | ✓ | — | |
+| Raspberry Pi Pico 2 W | ✓ | ✓ | ★ おすすめ |
+
+Wi-Fi対応モデルは、スリープ中のパソコンを自動で起動する機能が使えます。
+
+## セットアップ（3ステップ）
+
+### 1. Picoデバイスを購入
+[Raspberry Pi Pico W](https://www.raspberrypi.com/products/raspberry-pi-pico/) — 約1,000円
+
+### 2. セットアップツールをダウンロード
+[最新版をダウンロード](https://github.com/obichan117/pywinhello/releases/latest)
+→ `pywinhello_setup.exe` を実行
+
+### 3. 画面の案内に従ってセットアップ
+- Picoデバイスを接続
+- 動作テスト（メモ帳で自動入力を確認）
+- PINを登録
+- スケジュールを設定
+
+**完了！** 毎朝自動でパソコンが起動・ログインします。
+
+## よくある質問
+
+**Q: PINは安全ですか？**
+A: PINはPicoデバイス本体にのみAES-256で暗号化して保存されます。パソコンのディスクやインターネット上には一切保存されません。Picoを抜けば、パソコンにPINの情報は残りません。
+
+**Q: どのPicoを買えばいいですか？**
+A: どのモデルでも動作しますが、**Pico W** または **Pico 2 W**（Wi-Fi対応）がおすすめです。Wi-Fiがあると、スリープ中のパソコンを自動で起動する機能が使えます。
+
+**Q: シャットダウンしても動きますか？**
+A: シャットダウンからの自動起動はできません。**スリープ**をご利用ください。
+（スタート → 電源 → スリープ）
+
+**Q: 設定を変えたい時は？**
+A: スタートメニューから「pywinhello」を開くと、スケジュールやPINの変更ができます。
+
+**Q: アンインストールしたい時は？**
+A: Windowsの設定 → アプリ → pywinhello → アンインストール
+
+---
+
+<a name="english"></a>
+
+## English
+
+### What
+
+Plug in a Raspberry Pi Pico and it automatically handles all Windows Hello authentication — lock screen login, per-app PIN dialogs, and scheduled wake-from-sleep.
+
+- **Plug in** → automation ON
+- **Unplug** → automation OFF
+- **PIN stored on device only** — AES-256 encrypted, never on PC or internet
+
+### Why
+
+Windows Hello's Credential Dialog is protected by **UIPI** (User Interface Privilege Isolation). No software input method — `SendInput`, pyautogui, pywinauto — can type into it. A USB HID keyboard bypasses this restriction because the OS trusts physical input devices unconditionally.
+
+### How
+
+The Pico runs C firmware that presents as a dual USB device: HID keyboard (types PIN) + CDC serial (receives commands from the PC). A background monitor on the PC detects lock screens and Hello dialogs, then tells the Pico when to type.
+
+- **Lock screen**: PC detects lock → sends `UNLOCK` → Pico types PIN + Enter
+- **Windows Hello**: PC detects dialog → checks per-app whitelist → sends `HELLO` → Pico types PIN
+- **Boot unlock**: Pico detects cold boot → waits → blind-types PIN (no daemon needed)
+- **Pico W bonus**: independently wakes PC from sleep at scheduled time via USB remote wakeup
+
+### Setup (3 steps)
+
+1. **Buy a Pico** — [Raspberry Pi Pico W](https://www.raspberrypi.com/products/raspberry-pi-pico/) (~$6)
+2. **Download** — [Latest release](https://github.com/obichan117/pywinhello/releases/latest) → run `pywinhello_setup.exe`
+3. **Follow the wizard** — connect Pico, test, enter PIN, set schedule
+
+### Developer Guide
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for architecture, building from source, and serial protocol reference.
 
 ## License
 
