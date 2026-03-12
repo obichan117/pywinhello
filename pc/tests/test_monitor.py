@@ -27,8 +27,8 @@ class TestPinMapLookup:
 
 
 class TestHandleDialog:
-    @patch("pywinhello.monitor.enter_pin")
-    @patch("pywinhello.monitor.dialog")
+    @patch("pywinhello.monitor._v1_hello.enter_pin")
+    @patch("pywinhello.monitor._v1_hello.dialog")
     def test_known_app(self, mock_dialog, mock_enter):
         mock_dialog.get_owner_exe.return_value = "test.exe"
         mock_enter.return_value = AuthEvent(pin_sent=True, dialog_dismissed=True)
@@ -43,10 +43,10 @@ class TestHandleDialog:
             inter_key_delay_ms=50,
         )
 
-    @patch("pywinhello.monitor.enter_pin")
-    @patch("pywinhello.monitor.dialog")
+    @patch("pywinhello.monitor._v1_hello.enter_pin")
+    @patch("pywinhello.monitor._v1_hello.dialog")
     def test_unknown_app_no_env_var(self, mock_dialog, mock_enter):
-        """Unknown app with no PYWINHELLO_PIN → ValueError caught, returns error."""
+        """Unknown app with no PYWINHELLO_PIN -> ValueError caught, returns error."""
         mock_dialog.get_owner_exe.return_value = "unknown.exe"
         mock_enter.side_effect = ValueError("No PIN provided and PYWINHELLO_PIN environment variable is not set")
 
@@ -56,8 +56,8 @@ class TestHandleDialog:
         assert event.owner_exe == "unknown.exe"
         assert "PYWINHELLO_PIN" in event.error
 
-    @patch("pywinhello.monitor.enter_pin")
-    @patch("pywinhello.monitor.dialog")
+    @patch("pywinhello.monitor._v1_hello.enter_pin")
+    @patch("pywinhello.monitor._v1_hello.dialog")
     def test_custom_hid_port(self, mock_dialog, mock_enter):
         mock_dialog.get_owner_exe.return_value = "test.exe"
         mock_enter.return_value = AuthEvent()
@@ -70,8 +70,8 @@ class TestHandleDialog:
 
 
 class TestHandleNext:
-    @patch("pywinhello.monitor.enter_pin")
-    @patch("pywinhello.monitor.dialog")
+    @patch("pywinhello.monitor._v1_hello.enter_pin")
+    @patch("pywinhello.monitor._v1_hello.dialog")
     def test_dialog_already_visible(self, mock_dialog, mock_enter):
         mock_dialog.is_visible.return_value = True
         mock_dialog.get_owner_exe.return_value = "test.exe"
