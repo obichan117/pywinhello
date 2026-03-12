@@ -18,6 +18,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -70,7 +71,7 @@ def flash_firmware(
     firmware_path: str | Path,
     expected_hash: str | None = None,
     chunk_size: int = _CHUNK_SIZE,
-    on_progress: None | (callable) = None,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> FlashResult:
     """Flash firmware to the Pico over serial.
 
@@ -172,7 +173,7 @@ def flash_and_verify(
     expected_hash: str | None = None,
     expected_version: str | None = None,
     post_reboot_delay: float = _POST_REBOOT_DELAY,
-    on_progress: None | (callable) = None,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> FlashResult:
     """Flash firmware and verify the new version after reboot.
 

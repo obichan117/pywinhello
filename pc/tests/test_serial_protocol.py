@@ -9,7 +9,6 @@ import pytest
 
 from pywinhello.serial.protocol import (
     Command,
-    PingInfo,
     Response,
     SerialProtocol,
     encode_command,

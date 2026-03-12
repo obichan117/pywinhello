@@ -13,14 +13,11 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
 
 from pywinhello import dialog
 from pywinhello.models import AuthEvent
-
-if TYPE_CHECKING:
-    from pywinhello.serial.protocol import SerialProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -100,14 +97,16 @@ class HelloDetector:
 
     def __init__(
         self,
-        protocol: SerialProtocol,
+        on_hello: Callable[[], None],
+        on_escape: Callable[[], None] | None = None,
         whitelist: AppWhitelist | None = None,
-        on_event: Any | None = None,
-        on_new_app: Any | None = None,
+        on_event: Callable[[AuthEvent], None] | None = None,
+        on_new_app: Callable[[str], None] | None = None,
         dismiss_timeout: float = 5.0,
         focus_settle_delay: float = 0.3,
     ) -> None:
-        self._protocol = protocol
+        self._on_hello = on_hello
+        self._on_escape = on_escape
         self._whitelist = whitelist or AppWhitelist()
         self._on_event = on_event
         self._on_new_app = on_new_app
@@ -252,7 +251,7 @@ class HelloDetector:
 
         try:
             # Send HELLO command — Pico types the stored PIN (no ENTER)
-            self._protocol.hello()
+            self._on_hello()
             event.pin_sent = True
 
             if dialog.wait_for_dismiss(timeout=self._dismiss_timeout):
@@ -262,13 +261,11 @@ class HelloDetector:
                 # Dialog still open — likely fingerprint mode
                 # Send ESCAPE to close, caller will retry
                 logger.info("Dialog still open (fingerprint mode?) — closing with ESCAPE")
-                try:
-                    # Use protocol to send ESCAPE via Pico
-                    from pywinhello.serial.protocol import Command
-
-                    self._protocol.send(Command.PRESS, "ESCAPE")
-                except Exception:
-                    logger.debug("ESCAPE via serial failed, dialog may close on its own")
+                if self._on_escape:
+                    try:
+                        self._on_escape()
+                    except Exception:
+                        logger.debug("ESCAPE callback failed, dialog may close on its own")
 
                 dialog.wait_for_dismiss(timeout=3.0)
                 event.error = "fingerprint_mode"

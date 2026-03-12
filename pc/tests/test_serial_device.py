@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pywinhello.serial.device import ConnectionState, DeviceInfo, PicoDevice
+from pywinhello.serial.device import ConnectionState, PicoDevice
 from pywinhello.serial.protocol import PingInfo
 
 
@@ -184,7 +184,7 @@ class TestPicoDeviceEnsureConnected:
         mock_proto.ping.side_effect = [TimeoutError("lost"), _mock_protocol().ping.return_value]
         mock_proto_cls.return_value = _mock_protocol()
 
-        info = device.ensure_connected()
+        device.ensure_connected()
         assert device.is_connected
 
 

@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-import threading
 import time
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from pywinhello.monitor.lock_detector import (
     LockConfig,
     LockDetector,
     UnlockMode,
     is_desktop_locked,
+    is_waking_from_sleep,
 )
 
 
@@ -183,6 +182,47 @@ class TestLockDetector:
         detector.stop()
 
         assert protocol.unlock.call_count >= 1
+
+
+class TestIsWakingFromSleep:
+    @patch("pywinhello.monitor.lock_detector.sys")
+    def test_non_windows(self, mock_sys):
+        mock_sys.platform = "linux"
+        assert is_waking_from_sleep() is False
+
+    @patch("pywinhello.monitor.lock_detector.sys")
+    def test_recently_woke(self, mock_sys):
+        mock_sys.platform = "win32"
+        mock_ctypes = MagicMock()
+        mock_ctypes.windll.kernel32.GetTickCount64.return_value = 15_000  # 15s uptime
+        with patch("pywinhello.monitor.lock_detector.ctypes", mock_ctypes):
+            assert is_waking_from_sleep() is True
+
+    @patch("pywinhello.monitor.lock_detector.sys")
+    def test_not_recently_woke(self, mock_sys):
+        mock_sys.platform = "win32"
+        mock_ctypes = MagicMock()
+        mock_ctypes.windll.kernel32.GetTickCount64.return_value = 600_000  # 10 min
+        with patch("pywinhello.monitor.lock_detector.ctypes", mock_ctypes):
+            assert is_waking_from_sleep() is False
+
+
+class TestShouldUnlockFromSleep:
+    def test_scheduled_only_allows_from_sleep(self):
+        protocol = MagicMock()
+        config = LockConfig(mode=UnlockMode.SCHEDULED_ONLY)
+        detector = LockDetector(protocol, config, schedule_times=[])
+        # Without sleep, should not unlock (no matching schedule)
+        assert detector._should_unlock(from_sleep=False) is False
+        # With sleep, should unlock regardless of schedule
+        assert detector._should_unlock(from_sleep=True) is True
+
+    def test_always_mode_ignores_from_sleep(self):
+        protocol = MagicMock()
+        config = LockConfig(mode=UnlockMode.ALWAYS)
+        detector = LockDetector(protocol, config)
+        assert detector._should_unlock(from_sleep=False) is True
+        assert detector._should_unlock(from_sleep=True) is True
 
 
 class TestLockDetectorNearSchedule:

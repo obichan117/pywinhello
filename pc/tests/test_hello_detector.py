@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from pywinhello.monitor.hello_detector import AppWhitelist, HelloDetector
 
@@ -80,15 +79,15 @@ class TestAppWhitelist:
 
 class TestHelloDetectorInit:
     def test_default_init(self):
-        protocol = MagicMock()
-        detector = HelloDetector(protocol)
+        on_hello = MagicMock()
+        detector = HelloDetector(on_hello=on_hello)
         assert not detector.is_running
         assert detector.whitelist.auto_discover is True
 
     def test_custom_whitelist(self):
-        protocol = MagicMock()
+        on_hello = MagicMock()
         wl = AppWhitelist(apps={"test.exe": True}, auto_discover=False)
-        detector = HelloDetector(protocol, whitelist=wl)
+        detector = HelloDetector(on_hello=on_hello, whitelist=wl)
         assert detector.whitelist.auto_discover is False
 
 
@@ -99,30 +98,30 @@ class TestHelloDetectorHandleDialog:
         mock_dialog.is_foreground.return_value = True
         mock_dialog.wait_for_dismiss.return_value = True
 
-        protocol = MagicMock()
+        on_hello = MagicMock()
         wl = AppWhitelist(apps={"test.exe": True})
-        detector = HelloDetector(protocol, whitelist=wl)
+        detector = HelloDetector(on_hello=on_hello, whitelist=wl)
 
         event = detector._handle_dialog()
 
         assert event.pin_sent is True
         assert event.dialog_dismissed is True
         assert event.owner_exe == "test.exe"
-        protocol.hello.assert_called_once()
+        on_hello.assert_called_once()
 
     @patch("pywinhello.monitor.hello_detector.dialog")
     def test_disabled_app_ignored(self, mock_dialog):
         mock_dialog.get_owner_exe.return_value = "blocked.exe"
 
-        protocol = MagicMock()
+        on_hello = MagicMock()
         wl = AppWhitelist(apps={"blocked.exe": False})
-        detector = HelloDetector(protocol, whitelist=wl)
+        detector = HelloDetector(on_hello=on_hello, whitelist=wl)
 
         event = detector._handle_dialog()
 
         assert event.error is not None
         assert "disabled" in event.error
-        protocol.hello.assert_not_called()
+        on_hello.assert_not_called()
 
     @patch("pywinhello.monitor.hello_detector.dialog")
     def test_new_app_auto_discovered(self, mock_dialog):
@@ -130,10 +129,12 @@ class TestHelloDetectorHandleDialog:
         mock_dialog.is_foreground.return_value = True
         mock_dialog.wait_for_dismiss.return_value = True
 
-        protocol = MagicMock()
+        on_hello = MagicMock()
         on_new_app = MagicMock()
         wl = AppWhitelist(auto_discover=True)
-        detector = HelloDetector(protocol, whitelist=wl, on_new_app=on_new_app)
+        detector = HelloDetector(
+            on_hello=on_hello, whitelist=wl, on_new_app=on_new_app
+        )
 
         event = detector._handle_dialog()
 
@@ -146,14 +147,14 @@ class TestHelloDetectorHandleDialog:
         mock_dialog.get_owner_exe.return_value = "test.exe"
         mock_dialog.is_foreground.return_value = False  # Can't get focus
 
-        protocol = MagicMock()
+        on_hello = MagicMock()
         wl = AppWhitelist(apps={"test.exe": True})
-        detector = HelloDetector(protocol, whitelist=wl, focus_settle_delay=0.01)
+        detector = HelloDetector(on_hello=on_hello, whitelist=wl, focus_settle_delay=0.01)
 
         event = detector._handle_dialog()
 
         assert "lost focus" in event.error
-        protocol.hello.assert_not_called()
+        on_hello.assert_not_called()
 
     @patch("pywinhello.monitor.hello_detector.dialog")
     def test_fingerprint_mode_escape(self, mock_dialog):
@@ -162,26 +163,26 @@ class TestHelloDetectorHandleDialog:
         # Dialog doesn't dismiss (fingerprint mode)
         mock_dialog.wait_for_dismiss.side_effect = [False, True]
 
-        protocol = MagicMock()
+        on_hello = MagicMock()
+        on_escape = MagicMock()
         wl = AppWhitelist(apps={"test.exe": True})
-        detector = HelloDetector(protocol, whitelist=wl)
+        detector = HelloDetector(on_hello=on_hello, on_escape=on_escape, whitelist=wl)
 
         event = detector._handle_dialog()
 
         assert event.pin_sent is True
         assert event.error == "fingerprint_mode"
-        # Should have sent ESCAPE
-        protocol.send.assert_called()
+        on_escape.assert_called_once()
 
     @patch("pywinhello.monitor.hello_detector.dialog")
     def test_hello_command_failure(self, mock_dialog):
         mock_dialog.get_owner_exe.return_value = "test.exe"
         mock_dialog.is_foreground.return_value = True
 
-        protocol = MagicMock()
-        protocol.hello.side_effect = RuntimeError("serial error")
+        on_hello = MagicMock()
+        on_hello.side_effect = RuntimeError("serial error")
         wl = AppWhitelist(apps={"test.exe": True})
-        detector = HelloDetector(protocol, whitelist=wl)
+        detector = HelloDetector(on_hello=on_hello, whitelist=wl)
 
         event = detector._handle_dialog()
 
@@ -194,8 +195,8 @@ class TestHelloDetectorHandleDialog:
         mock_dialog.is_foreground.return_value = True
         mock_dialog.wait_for_dismiss.return_value = True
 
-        protocol = MagicMock()
-        detector = HelloDetector(protocol)
+        on_hello = MagicMock()
+        detector = HelloDetector(on_hello=on_hello)
 
         event = detector._handle_dialog()
         assert event.pin_sent is True
@@ -206,8 +207,8 @@ class TestHelloDetectorStartStop:
     def test_start_stop(self, mock_dialog):
         mock_dialog.is_visible.return_value = False
 
-        protocol = MagicMock()
-        detector = HelloDetector(protocol)
+        on_hello = MagicMock()
+        detector = HelloDetector(on_hello=on_hello)
 
         detector.start()
         assert detector.is_running
@@ -219,8 +220,8 @@ class TestHelloDetectorStartStop:
     def test_double_start_warns(self, mock_dialog):
         mock_dialog.is_visible.return_value = False
 
-        protocol = MagicMock()
-        detector = HelloDetector(protocol)
+        on_hello = MagicMock()
+        detector = HelloDetector(on_hello=on_hello)
 
         detector.start()
         detector.start()  # Should warn, not crash

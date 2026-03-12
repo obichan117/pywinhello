@@ -1,94 +1,83 @@
 # Quick Start
 
-## Install
+## What you'll get
+
+A Raspberry Pi Pico that automatically types your Windows PIN whenever needed — lock screen, Windows Hello dialogs, and morning wake-from-sleep.
+
+## Why a Pico?
+
+Windows blocks all software-based input on the credential dialog (UIPI). A USB HID keyboard is the only way to type into it programmatically. The Pico costs ~$6 and acts as a dedicated authentication device.
+
+## End-User Setup (3 steps)
+
+### 1. Buy a Pico
+
+[Raspberry Pi Pico W](https://www.raspberrypi.com/products/raspberry-pi-pico/) (~$6 / ~1,000円). Any Pico variant works, but W models add scheduled wake-from-sleep.
+
+### 2. Download and install
+
+[Latest release](https://github.com/obichan117/pywinhello/releases/latest) → run `pywinhello_setup.exe`
+
+The installer places:
+- `pywinhello-monitor.exe` — invisible background process (starts on login)
+- `pywinhello.exe` — settings app (Start Menu shortcut)
+- Firmware `.uf2` files for Pico flashing
+
+### 3. Follow the setup wizard
+
+The settings app opens automatically after install:
+
+1. **Device detection** — plug in Pico (BOOTSEL mode for first flash, or already flashed)
+2. **Typing test** — Notepad opens, Pico types test string, speed auto-calibrated
+3. **PIN registration** — enter Windows PIN twice, stored encrypted on Pico only
+4. **Schedule** — set wake time and days (default: weekdays 07:45)
+
+Done. The monitor runs silently in the background. Plug in = armed, unplug = disarmed.
+
+## Developer Setup
+
+For building from source or contributing:
 
 ```bash
-pip install pywinhello
+git clone https://github.com/obichan117/pywinhello.git
+cd pywinhello/pc
+uv sync --extra dev
+uv run pytest tests/ --import-mode=importlib -v
 ```
 
-## Prerequisites
+### v1 library API (still available)
 
-1. A Raspberry Pi Pico (W, 2, or 2W) connected via USB
-2. Firmware installed (see [Hardware Setup](hardware.md) or use `pywinhello setup-pico`)
-
-## One-shot PIN entry
+The v1 Python library API remains functional for programmatic use:
 
 ```python
 from pywinhello import enter_pin
 
-# When Windows Hello dialog appears, enter PIN
+# Type PIN into the current Windows Hello dialog
 event = enter_pin("1234")
-
 if event.dialog_dismissed:
-    print(f"PIN accepted! (took {event.elapsed:.1f}s)")
-elif event.error:
-    print(f"Failed: {event.error}")
+    print(f"PIN accepted! ({event.elapsed:.1f}s)")
 ```
-
-### Options
-
-```python
-event = enter_pin(
-    pin="1234",
-    port="COM8",              # explicit port (default: auto-detect)
-    inter_key_delay_ms=50,    # delay between keystrokes
-    pin_select_keys=["ESCAPE"],  # keys to navigate from fingerprint to PIN
-    dialog_timeout=10.0,      # seconds to wait for dialog
-    dismiss_timeout=5.0,      # seconds to wait for dismissal
-)
-```
-
-## Process-aware daemon
-
-Create `config.yaml`:
-
-```yaml
-apps:
-  - exe: MarketSpeed2.exe
-    pin: "1234"
-  - exe: chrome.exe
-    pin: "5678"
-    pin_select_keys: ["ESCAPE"]
-
-hid_port: auto           # or "COM8"
-inter_key_delay_ms: 50
-dialog_wait_timeout: 5.0
-```
-
-Run the monitor:
 
 ```python
 from pywinhello import HelloMonitor, load_config
 
 config = load_config("config.yaml")
 monitor = HelloMonitor(config)
-
-# Handle next dialog (one-shot)
-event = monitor.handle_next(timeout=60.0)
-print(f"Handled {event.owner_exe}: dismissed={event.dialog_dismissed}")
-
-# Or run as daemon
 monitor.serve(on_event=lambda e: print(e))
 ```
 
-## CLI
+### CLI (v1)
 
 ```bash
-# Set up a Pico (flash CircuitPython + firmware)
-pywinhello setup-pico
-
-# Ping the Pico HID bridge
-pywinhello ping
-
-# Run monitor daemon
-pywinhello serve -c config.yaml
+pywinhello setup-pico    # Flash CircuitPython firmware to Pico
+pywinhello ping          # Check Pico connectivity
+pywinhello serve -c config.yaml   # Run monitor daemon
 ```
 
-## How it works
+## How the detection works
 
-1. **Dialog detection** — WinEvent hook (`EVENT_OBJECT_CREATE`) detects the `Credential Dialog Xaml Host` window instantly
-2. **Process identification** — `GetWindow(GW_OWNER)` traces the dialog back to the requesting process
-3. **PIN lookup** — Maps the process exe name to a PIN from your config
-4. **Focus** — `AttachThreadInput` + `SetForegroundWindow` brings the dialog to focus (required for HID keystrokes)
-5. **Two-pass entry** — Types PIN directly (assumes PIN mode); if dialog persists, navigates from fingerprint mode via configurable keys and retries
-6. **HID bypass** — Physical keyboard input from the Pico bypasses UIPI restrictions
+1. **WinEvent hook** (`EVENT_OBJECT_CREATE`) — zero-polling detection of the `Credential Dialog Xaml Host` window
+2. **Process identification** — `GetWindow(GW_OWNER)` → PID → exe name identifies which app triggered the dialog
+3. **Focus guards** — 3-layer verification (`AttachThreadInput` + `SetForegroundWindow` + re-check) ensures PIN only types into the correct window
+4. **Two-pass entry** — tries PIN directly; if dialog persists (fingerprint mode), sends ESCAPE and retries
+5. **HID bypass** — Pico types as a physical USB keyboard, bypassing UIPI

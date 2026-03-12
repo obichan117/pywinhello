@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
-import pytest
 
 from pywinhello.monitor.scheduler_sync import (
     ScheduleConfig,
@@ -12,6 +11,7 @@ from pywinhello.monitor.scheduler_sync import (
     create_wake_task,
     delete_all_tasks,
     delete_wake_task,
+    enable_wake_timers,
     sync_schedule,
     task_exists,
 )
@@ -175,6 +175,32 @@ class TestCreateWakeTask:
 
         assert result is False
         mock_create.assert_not_called()
+
+
+class TestEnableWakeTimers:
+    @patch("pywinhello.monitor.scheduler_sync.sys")
+    def test_non_windows(self, mock_sys):
+        mock_sys.platform = "linux"
+        assert enable_wake_timers() is False
+
+    @patch("pywinhello.monitor.scheduler_sync.subprocess.run")
+    @patch("pywinhello.monitor.scheduler_sync.sys")
+    def test_success(self, mock_sys, mock_run):
+        mock_sys.platform = "win32"
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="Power Scheme GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced)",
+        )
+        assert enable_wake_timers() is True
+        assert mock_run.call_count == 4  # getactivescheme + setac + setdc + setactive
+
+    @patch("pywinhello.monitor.scheduler_sync.subprocess.run")
+    @patch("pywinhello.monitor.scheduler_sync.sys")
+    def test_failure(self, mock_sys, mock_run):
+        mock_sys.platform = "win32"
+        import subprocess as sp
+        mock_run.side_effect = sp.CalledProcessError(1, "powercfg")
+        assert enable_wake_timers() is False
 
 
 class TestSyncSchedule:

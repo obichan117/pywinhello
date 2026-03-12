@@ -205,10 +205,12 @@ class MonitorService:
         # 3. Start hello detector
         try:
             from pywinhello.monitor.hello_detector import AppWhitelist, HelloDetector
+            from pywinhello.serial.protocol import Command
 
             whitelist = AppWhitelist.from_pico_config(self._config)
             self._hello_detector = HelloDetector(
-                protocol=protocol,
+                on_hello=protocol.hello,
+                on_escape=lambda: protocol.send(Command.PRESS, "ESCAPE"),
                 whitelist=whitelist,
                 on_new_app=self._on_new_app_discovered,
             )

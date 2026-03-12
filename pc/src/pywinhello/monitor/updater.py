@@ -8,20 +8,17 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import os
 import shutil
 import sys
-import tempfile
 import threading
-import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-
-import requests
 
 if TYPE_CHECKING:
     from pywinhello.serial.protocol import SerialProtocol
@@ -184,29 +181,28 @@ def check_for_updates(
     if cached_etag:
         headers["If-None-Match"] = cached_etag
 
+    req = urllib.request.Request(_GITHUB_API_URL, headers=headers)
     try:
-        resp = requests.get(_GITHUB_API_URL, headers=headers, timeout=10)
-    except requests.RequestException as e:
+        resp = urllib.request.urlopen(req, timeout=10)
+        resp_headers = resp.headers
+        body = resp.read()
+    except urllib.error.HTTPError as e:
+        if e.code == 304:
+            logger.debug("GitHub API returned 304 Not Modified")
+            return UpdateCheck()
+        if e.code == 404:
+            return UpdateCheck(error="No releases found")
+        return UpdateCheck(error=f"GitHub API error: {e.code}")
+    except (urllib.error.URLError, OSError) as e:
         return UpdateCheck(error=f"Network error: {e}")
 
-    if resp.status_code == 304:
-        # Not modified — no new release since last check
-        logger.debug("GitHub API returned 304 Not Modified")
-        return UpdateCheck()
-
-    if resp.status_code == 404:
-        return UpdateCheck(error="No releases found")
-
-    if resp.status_code != 200:
-        return UpdateCheck(error=f"GitHub API error: {resp.status_code}")
-
     # Save new ETag
-    etag = resp.headers.get("ETag")
+    etag = resp_headers.get("ETag")
     if etag:
         _save_etag(etag)
 
     try:
-        release_data = resp.json()
+        release_data = json.loads(body)
     except ValueError:
         return UpdateCheck(error="Invalid JSON from GitHub API")
 
@@ -228,9 +224,8 @@ def check_for_updates(
 
     # Download and parse manifest
     try:
-        manifest_resp = requests.get(manifest_url, timeout=10)
-        manifest_resp.raise_for_status()
-        manifest = ReleaseManifest.from_dict(manifest_resp.json())
+        manifest_body = urllib.request.urlopen(manifest_url, timeout=10).read()
+        manifest = ReleaseManifest.from_dict(json.loads(manifest_body))
     except Exception as e:
         return UpdateCheck(error=f"Failed to parse manifest: {e}", assets=assets)
 
@@ -259,12 +254,13 @@ def download_asset(url: str, dest: Path) -> bool:
         True if download succeeded.
     """
     try:
-        resp = requests.get(url, timeout=60, stream=True)
-        resp.raise_for_status()
-
+        resp = urllib.request.urlopen(url, timeout=60)
         dest.parent.mkdir(parents=True, exist_ok=True)
         with open(dest, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=8192):
+            while True:
+                chunk = resp.read(8192)
+                if not chunk:
+                    break
                 f.write(chunk)
 
         logger.info("Downloaded %s -> %s", url.rsplit("/", 1)[-1], dest)

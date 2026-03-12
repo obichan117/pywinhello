@@ -3,20 +3,19 @@
 from __future__ import annotations
 
 import json
+import urllib.error
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-import requests
 
 from pywinhello.monitor.updater import (
     AutoUpdater,
     ReleaseManifest,
     UpdateCheck,
     apply_software_update,
-    check_for_updates,
     cleanup_old_update,
     compare_versions,
+    check_for_updates,
 )
 
 
@@ -80,22 +79,40 @@ class TestReleaseManifest:
         assert m.software_version == "2.0.0"
 
 
+def _mock_urlopen(release_data, manifest_data=None):
+    """Helper to create mock responses for urllib.request.urlopen."""
+    responses = []
+
+    # First call: GitHub API release
+    release_resp = MagicMock()
+    release_resp.status = 200
+    release_resp.headers = MagicMock()
+    release_resp.headers.get = lambda key, default=None: {
+        "ETag": '"abc123"',
+    }.get(key, default)
+    release_resp.read.return_value = json.dumps(release_data).encode()
+    responses.append(release_resp)
+
+    # Second call: manifest download
+    if manifest_data is not None:
+        manifest_resp = MagicMock()
+        manifest_resp.read.return_value = json.dumps(manifest_data).encode()
+        responses.append(manifest_resp)
+
+    return responses
+
+
 class TestCheckForUpdates:
-    @patch("pywinhello.monitor.updater.requests")
+    @patch("pywinhello.monitor.updater.urllib.request.urlopen")
     @patch("pywinhello.monitor.updater._load_etag", return_value=None)
     @patch("pywinhello.monitor.updater._save_etag")
-    def test_update_available(self, mock_save, mock_load, mock_requests):
-        # Mock GitHub API response
+    def test_update_available(self, mock_save, mock_load, mock_urlopen):
         manifest_data = {
             "version": "2.0.0",
             "software_version": "2.0.0",
             "firmware_version": "1.5.0",
         }
-
-        release_resp = MagicMock()
-        release_resp.status_code = 200
-        release_resp.headers = {"ETag": '"abc123"'}
-        release_resp.json.return_value = {
+        release_data = {
             "assets": [
                 {
                     "name": "manifest.json",
@@ -108,10 +125,7 @@ class TestCheckForUpdates:
             ]
         }
 
-        manifest_resp = MagicMock()
-        manifest_resp.json.return_value = manifest_data
-
-        mock_requests.get.side_effect = [release_resp, manifest_resp]
+        mock_urlopen.side_effect = _mock_urlopen(release_data, manifest_data)
 
         result = check_for_updates(
             current_sw_version="1.0.0",
@@ -124,60 +138,52 @@ class TestCheckForUpdates:
         assert result.manifest.software_version == "2.0.0"
         assert "manifest.json" in result.assets
 
-    @patch("pywinhello.monitor.updater.requests")
+    @patch("pywinhello.monitor.updater.urllib.request.urlopen")
     @patch("pywinhello.monitor.updater._load_etag", return_value='"old_etag"')
-    def test_not_modified(self, mock_load, mock_requests):
-        resp = MagicMock()
-        resp.status_code = 304
-        mock_requests.get.return_value = resp
+    def test_not_modified(self, mock_load, mock_urlopen):
+        mock_urlopen.side_effect = urllib.error.HTTPError(
+            url="", code=304, msg="Not Modified", hdrs=None, fp=None
+        )
 
         result = check_for_updates(current_sw_version="1.0.0")
         assert result.has_software_update is False
         assert result.error is None
 
-    @patch("pywinhello.monitor.updater.requests")
+    @patch("pywinhello.monitor.updater.urllib.request.urlopen")
     @patch("pywinhello.monitor.updater._load_etag", return_value=None)
-    def test_network_error(self, mock_load, mock_requests):
-        mock_requests.get.side_effect = requests.RequestException("connection timeout")
-        mock_requests.RequestException = requests.RequestException
+    def test_network_error(self, mock_load, mock_urlopen):
+        mock_urlopen.side_effect = urllib.error.URLError("connection timeout")
 
         result = check_for_updates(current_sw_version="1.0.0")
         assert result.error is not None
 
-    @patch("pywinhello.monitor.updater.requests")
+    @patch("pywinhello.monitor.updater.urllib.request.urlopen")
     @patch("pywinhello.monitor.updater._load_etag", return_value=None)
-    def test_no_manifest_in_assets(self, mock_load, mock_requests):
-        resp = MagicMock()
-        resp.status_code = 200
-        resp.headers = {}
-        resp.json.return_value = {
+    @patch("pywinhello.monitor.updater._save_etag")
+    def test_no_manifest_in_assets(self, mock_save, mock_load, mock_urlopen):
+        release_data = {
             "assets": [{"name": "README.md", "browser_download_url": "..."}]
         }
-        mock_requests.get.return_value = resp
+        mock_urlopen.side_effect = _mock_urlopen(release_data)
 
         result = check_for_updates(current_sw_version="1.0.0")
         assert result.error is not None
         assert "manifest" in result.error.lower()
 
-    @patch("pywinhello.monitor.updater.requests")
+    @patch("pywinhello.monitor.updater.urllib.request.urlopen")
     @patch("pywinhello.monitor.updater._load_etag", return_value=None)
     @patch("pywinhello.monitor.updater._save_etag")
-    def test_no_firmware_check_when_version_none(self, mock_save, mock_load, mock_requests):
+    def test_no_firmware_check_when_version_none(self, mock_save, mock_load, mock_urlopen):
         manifest_data = {
             "software_version": "2.0.0",
             "firmware_version": "1.5.0",
         }
-        release_resp = MagicMock()
-        release_resp.status_code = 200
-        release_resp.headers = {}
-        release_resp.json.return_value = {
+        release_data = {
             "assets": [
                 {"name": "manifest.json", "browser_download_url": "https://x/m.json"},
             ]
         }
-        manifest_resp = MagicMock()
-        manifest_resp.json.return_value = manifest_data
-        mock_requests.get.side_effect = [release_resp, manifest_resp]
+        mock_urlopen.side_effect = _mock_urlopen(release_data, manifest_data)
 
         result = check_for_updates(
             current_sw_version="1.0.0",
@@ -185,36 +191,31 @@ class TestCheckForUpdates:
         )
         assert result.has_firmware_update is False  # Not checked
 
-    @patch("pywinhello.monitor.updater.requests")
+    @patch("pywinhello.monitor.updater.urllib.request.urlopen")
     @patch("pywinhello.monitor.updater._load_etag", return_value=None)
-    def test_404_response(self, mock_load, mock_requests):
-        resp = MagicMock()
-        resp.status_code = 404
-        mock_requests.get.return_value = resp
+    def test_404_response(self, mock_load, mock_urlopen):
+        mock_urlopen.side_effect = urllib.error.HTTPError(
+            url="", code=404, msg="Not Found", hdrs=None, fp=None
+        )
 
         result = check_for_updates(current_sw_version="1.0.0")
         assert result.error is not None
         assert "No releases" in result.error
 
-    @patch("pywinhello.monitor.updater.requests")
+    @patch("pywinhello.monitor.updater.urllib.request.urlopen")
     @patch("pywinhello.monitor.updater._load_etag", return_value=None)
     @patch("pywinhello.monitor.updater._save_etag")
-    def test_already_up_to_date(self, mock_save, mock_load, mock_requests):
+    def test_already_up_to_date(self, mock_save, mock_load, mock_urlopen):
         manifest_data = {
             "software_version": "1.0.0",
             "firmware_version": "1.0.0",
         }
-        release_resp = MagicMock()
-        release_resp.status_code = 200
-        release_resp.headers = {}
-        release_resp.json.return_value = {
+        release_data = {
             "assets": [
                 {"name": "manifest.json", "browser_download_url": "https://x/m.json"},
             ]
         }
-        manifest_resp = MagicMock()
-        manifest_resp.json.return_value = manifest_data
-        mock_requests.get.side_effect = [release_resp, manifest_resp]
+        mock_urlopen.side_effect = _mock_urlopen(release_data, manifest_data)
 
         result = check_for_updates(
             current_sw_version="1.0.0",
@@ -255,7 +256,7 @@ class TestAutoUpdater:
 
         with patch("pywinhello.monitor.updater.check_for_updates") as mock_check:
             mock_check.return_value = UpdateCheck()
-            result = updater.check_once()
+            updater.check_once()
             mock_check.assert_called_once_with(current_fw_version="1.0.0")
 
     def test_start_stop(self):

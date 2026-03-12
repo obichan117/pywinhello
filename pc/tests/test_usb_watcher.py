@@ -6,7 +6,6 @@ import threading
 import time
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from pywinhello.monitor.usb_watcher import USBWatcher
 

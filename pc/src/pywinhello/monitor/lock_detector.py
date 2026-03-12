@@ -200,9 +200,12 @@ class LockDetector:
 
                 if locked and not self._was_locked:
                     # Transition: unlocked -> locked
-                    logger.info("Desktop lock detected")
-                    if self._should_unlock():
-                        self._perform_unlock()
+                    from_sleep = is_waking_from_sleep()
+                    logger.info(
+                        "Desktop lock detected (from_sleep=%s)", from_sleep
+                    )
+                    if self._should_unlock(from_sleep=from_sleep):
+                        self._perform_unlock(from_sleep=from_sleep)
                     else:
                         logger.debug("Unlock suppressed by schedule/config")
 
@@ -217,7 +220,7 @@ class LockDetector:
 
             self._stop_event.wait(self._poll_interval)
 
-    def _should_unlock(self) -> bool:
+    def _should_unlock(self, from_sleep: bool = False) -> bool:
         """Determine if we should auto-unlock based on config and schedule."""
         if not self._config.enabled:
             return False
@@ -226,6 +229,9 @@ class LockDetector:
             return True
 
         if self._config.mode == UnlockMode.SCHEDULED_ONLY:
+            # Always allow unlock after sleep resume (PC woke for a reason)
+            if from_sleep:
+                return True
             return self._is_near_schedule()
 
         return False
@@ -249,11 +255,14 @@ class LockDetector:
 
         return False
 
-    def _perform_unlock(self) -> None:
+    def _perform_unlock(self, from_sleep: bool = False) -> None:
         """Send UNLOCK command to Pico with retry logic."""
-        # Wait for display to render lock screen
-        logger.debug("Waiting %.1fs for lock screen to render...", self._config.wake_wait_sec)
-        self._stop_event.wait(self._config.wake_wait_sec)
+        # After sleep resume, wait a bit longer for display to power on
+        wait_sec = self._config.wake_wait_sec
+        if from_sleep:
+            wait_sec = max(wait_sec, 5.0)
+        logger.debug("Waiting %.1fs for lock screen to render...", wait_sec)
+        self._stop_event.wait(wait_sec)
 
         for attempt in range(1, self._config.retry_count + 1):
             if self._stop_event.is_set():

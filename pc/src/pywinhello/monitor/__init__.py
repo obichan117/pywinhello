@@ -15,8 +15,10 @@ when this directory became a package).
 
 from pywinhello.monitor._v1_hello import HelloMonitor
 from pywinhello.monitor.service import MonitorService
+from pywinhello.monitor.usb_watcher import USBWatcher
 
 __all__ = [
     "HelloMonitor",
     "MonitorService",
+    "USBWatcher",
 ]
