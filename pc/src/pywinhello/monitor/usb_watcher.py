@@ -16,7 +16,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from pywinhello.hid import find_pico_port
+from pywinhello.serial.device import find_pico_port
 
 logger = logging.getLogger(__name__)
 

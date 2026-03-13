@@ -14,7 +14,7 @@ from pywinhello.gui.i18n import t
 from pywinhello.gui.wizard.base import WizardStep
 
 if TYPE_CHECKING:
-    from pywinhello.gui.wizard import SetupWizard
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -222,10 +222,10 @@ class TestStep(WizardStep):
         # Step 1: Open Notepad
         self._set_status("open", t("test.notepad.status_running"), "white")
         try:
-            proc = subprocess.Popen(["notepad.exe"])
+            subprocess.Popen(["notepad.exe"])
             time.sleep(1.5)  # Wait for window to appear and get focus
             self._set_status("open", t("test.notepad.status_pass"), "green")
-        except Exception as e:
+        except Exception:
             self._set_status("open", t("test.notepad.status_fail"), "red")
             logger.exception("Failed to open Notepad")
             passed = False
@@ -360,7 +360,7 @@ class TestStep(WizardStep):
 
             hid.close()
 
-        except Exception as e:
+        except Exception:
             logger.exception("Test failed")
             passed = False
             try:

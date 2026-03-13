@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import threading
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
@@ -12,7 +11,7 @@ from pywinhello.gui.i18n import t
 from pywinhello.gui.wizard.base import WizardStep
 
 if TYPE_CHECKING:
-    from pywinhello.gui.wizard import SetupWizard
+    pass
 
 logger = logging.getLogger(__name__)
 

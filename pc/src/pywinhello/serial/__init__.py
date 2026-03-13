@@ -4,7 +4,7 @@ Provides device detection, command/response protocol, and firmware flashing
 over USB CDC serial.
 """
 
-from pywinhello.serial.device import ConnectionState, DeviceInfo, PicoDevice
+from pywinhello.serial.device import ConnectionState, DeviceInfo, PicoDevice, find_pico_port
 from pywinhello.serial.flasher import FlashResult, flash_and_verify, flash_firmware
 from pywinhello.serial.protocol import (
     Command,
@@ -22,6 +22,7 @@ __all__ = [
     "DeviceInfo",
     "FlashResult",
     "PicoDevice",
+    "find_pico_port",
     "PingInfo",
     "Response",
     "SerialProtocol",

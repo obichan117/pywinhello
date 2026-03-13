@@ -1,7 +1,7 @@
 """Pico device detection, handshake, and connection lifecycle.
 
-Reuses VID:PID detection logic from ``pywinhello.hid`` and adds v2 protocol
-support with connection state management and automatic reconnection.
+Detects Pico devices by VID:PID over USB CDC serial, performs v2 protocol
+handshake, and manages connection state with automatic reconnection.
 """
 
 from __future__ import annotations
@@ -12,11 +12,49 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 
-from pywinhello.hid import find_pico_port
+from serial.tools import list_ports
+
 from pywinhello.serial.protocol import PingInfo, SerialProtocol
 
 logger = logging.getLogger(__name__)
 
+# Raspberry Pi Pico USB identifiers (Adafruit VID)
+PICO_VID = 0x239A
+PICO_PIDS = {
+    0x8058,  # Pico W
+    0x8120,  # Pico W (alt)
+    0x80F4,  # Pico (non-W)
+    0x8150,  # Pico 2 (non-W)
+    0x8160,  # Pico 2 W
+}
+
+
+def find_pico_port() -> str | None:
+    """Auto-detect the Pico CDC serial port by VID:PID.
+
+    Scans all COM ports and returns the one matching a known Pico VID:PID.
+    When multiple matches exist (e.g. dual CDC), picks the highest-numbered port.
+
+    Returns:
+        COM port name (e.g. ``"COM8"``) or ``None`` if not found.
+    """
+    ports = list_ports.comports()
+    logger.debug("Scanning %d COM ports for Pico", len(ports))
+
+    candidates = [p for p in ports if p.vid == PICO_VID and p.pid in PICO_PIDS]
+    if candidates:
+        best = max(candidates, key=lambda p: p.device)
+        logger.info("Found Pico on %s (pid=0x%04X)", best.device, best.pid)
+        return best.device
+
+    # Fallback: VID-only match
+    for p in ports:
+        if p.vid == PICO_VID:
+            logger.info("Found Pico (VID match) on %s: %s", p.device, p.description)
+            return p.device
+
+    logger.debug("No Pico found among: %s", [(p.device, p.vid, p.pid) for p in ports])
+    return None
 
 class ConnectionState(str, Enum):
     """Device connection states."""

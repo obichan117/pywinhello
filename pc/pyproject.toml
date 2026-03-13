@@ -22,7 +22,6 @@ classifiers = [
 dependencies = [
     "pyserial>=3.5",
     "customtkinter>=5.2",
-    "requests>=2.31",
     "wmi>=1.5; sys_platform == 'win32'",
     "pywin32>=306; sys_platform == 'win32'",
 ]
@@ -36,7 +35,7 @@ dev = [
 ]
 
 [project.scripts]
-pywinhello = "pywinhello.cli:main"
+pywinhello = "pywinhello.__main__:main"
 
 [project.gui-scripts]
 pywinhello-settings = "pywinhello.gui.app:main"

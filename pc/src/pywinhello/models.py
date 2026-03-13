@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -28,32 +28,3 @@ class AuthEvent:
 
     error: str | None = None
     """Error message if something went wrong."""
-
-
-@dataclass
-class AppConfig:
-    """Per-application PIN configuration."""
-
-    exe: str
-    """Process executable name (e.g. 'MarketSpeed2.exe')."""
-
-    pin: str
-    """Windows Hello PIN for this application."""
-
-
-
-@dataclass
-class MonitorConfig:
-    """Configuration for the HelloMonitor daemon."""
-
-    apps: list[AppConfig] = field(default_factory=list)
-    """List of per-application configurations."""
-
-    hid_port: str | None = None
-    """COM port for Pico HID bridge. None = auto-detect."""
-
-    inter_key_delay_ms: int = 50
-    """Delay between keystrokes in milliseconds."""
-
-    dialog_wait_timeout: float = 5.0
-    """Seconds to wait for dialog to be ready after detection."""

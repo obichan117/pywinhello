@@ -197,7 +197,7 @@ class AdvancedSettings(ctk.CTkFrame):
 
     def _on_reset(self) -> None:
         """Reset all values to defaults."""
-        dialog = ctk.CTkInputDialog(
+        ctk.CTkInputDialog(
             text=t("settings.advanced.reset_confirm"),
             title=t("common.warning"),
         )
