@@ -1,6 +1,6 @@
 """Pico device detection, handshake, and connection lifecycle.
 
-Detects Pico devices by VID:PID over USB CDC serial, performs v2 protocol
+Detects Pico devices by VID:PID over USB CDC serial, performs protocol
 handshake, and manages connection state with automatic reconnection.
 """
 
@@ -10,7 +10,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from serial.tools import list_ports
 
@@ -37,20 +37,29 @@ def find_pico_port() -> str | None:
 
     candidates = [p for p in ports if p.vid == PICO_VID and p.pid in PICO_PIDS]
     if candidates:
-        best = max(candidates, key=lambda p: p.device)
+        def _port_number(p: object) -> int:
+            name = getattr(p, "device", "")
+            # Extract numeric suffix for proper ordering (COM9 < COM10)
+            digits = "".join(c for c in name if c.isdigit())
+            return int(digits) if digits else 0
+
+        best = max(candidates, key=_port_number)
         logger.info("Found Pico on %s (pid=0x%04X)", best.device, best.pid)
         return best.device
 
-    # Fallback: VID-only match
+    # Fallback: VID-only match (may match other Adafruit devices)
     for p in ports:
         if p.vid == PICO_VID:
-            logger.info("Found Pico (VID match) on %s: %s", p.device, p.description)
+            logger.warning(
+                "Found device with Pico VID but unknown PID (0x%04X) on %s: %s",
+                p.pid or 0, p.device, p.description,
+            )
             return p.device
 
     logger.debug("No Pico found among: %s", [(p.device, p.vid, p.pid) for p in ports])
     return None
 
-class ConnectionState(str, Enum):
+class ConnectionState(StrEnum):
     """Device connection states."""
 
     DISCONNECTED = "disconnected"
@@ -74,7 +83,7 @@ class DeviceInfo:
 
 
 class PicoDevice:
-    """Manages connection to a Pico over serial with v2 protocol support.
+    """Manages connection to a Pico over serial with protocol support.
 
     Handles auto-detection, handshake, connection state, and reconnection.
 
@@ -188,7 +197,7 @@ class PicoDevice:
                 try:
                     self._protocol.close()
                 except Exception:
-                    pass
+                    logger.debug("Error closing serial port", exc_info=True)
                 self._protocol = None
             self._info = None
             self._state = ConnectionState.DISCONNECTED

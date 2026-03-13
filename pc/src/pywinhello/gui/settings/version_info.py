@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import customtkinter as ctk
 
@@ -152,8 +153,9 @@ class VersionInfo(ctk.CTkFrame):
     def _check_thread(self) -> None:
         """Fetch latest version info from GitHub."""
         try:
-            import requests
             from datetime import datetime
+
+            import requests
 
             resp = requests.get(
                 "https://api.github.com/repos/obichan117/pywinhello/releases/latest",
@@ -246,7 +248,10 @@ class VersionInfo(ctk.CTkFrame):
                 self.after(
                     0,
                     self._update_status.configure,
-                    {"text": t("settings.version.update_failed", error=str(e)), "text_color": "red"},
+                    {
+                        "text": t("settings.version.update_failed", error=str(e)),
+                        "text_color": "red",
+                    },
                 )
             finally:
                 self.after(0, self._update_btn.configure, {"state": "normal"})

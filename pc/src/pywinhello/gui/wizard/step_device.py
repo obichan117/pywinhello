@@ -46,33 +46,21 @@ def _find_bootsel_drive() -> Path | None:
 def _find_pico_com() -> tuple[str | None, str | None, str | None]:
     """Detect Pico on a COM port. Returns (port, device_type, firmware_version)."""
     try:
-        from pywinhello.hid import find_pico_port, HIDKeyboard
+        from pywinhello.serial.device import PicoDevice
 
-        port = find_pico_port()
-        if port is None:
-            return None, None, None
-
-        # Try to get device info via protocol
+        device = PicoDevice()
         try:
-            with HIDKeyboard(port=port) as kb:
-                if kb.ping():
-                    # v2 firmware supports STATUS command
-                    try:
-                        resp = kb._send("STATUS")
-                        # Expected: "OK:type=pico_w,fw=1.0.0" or similar
-                        info: dict[str, str] = {}
-                        for part in resp.replace("OK:", "").split(","):
-                            if "=" in part:
-                                k, v = part.split("=", 1)
-                                info[k.strip()] = v.strip()
-                        device_type = info.get("type", "Pico")
-                        fw_version = info.get("fw", "unknown")
-                        return port, device_type, fw_version
-                    except Exception:
-                        # v1 firmware: only PING works
-                        return port, "Pico", "1.x"
+            info = device.connect()
+            port = info.port
+            device_type = info.ping_info.device_type
+            firmware_version = info.ping_info.firmware_version
+            device.disconnect()
+            return port, device_type, firmware_version
+        except ConnectionError:
+            return None, None, None
         except Exception:
-            return port, None, None
+            device.disconnect()
+            return None, None, None
 
     except ImportError:
         pass

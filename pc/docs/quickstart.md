@@ -45,35 +45,6 @@ uv sync --extra dev
 uv run pytest tests/ --import-mode=importlib -v
 ```
 
-### v1 library API (still available)
-
-The v1 Python library API remains functional for programmatic use:
-
-```python
-from pywinhello import enter_pin
-
-# Type PIN into the current Windows Hello dialog
-event = enter_pin("1234")
-if event.dialog_dismissed:
-    print(f"PIN accepted! ({event.elapsed:.1f}s)")
-```
-
-```python
-from pywinhello import HelloMonitor, load_config
-
-config = load_config("config.yaml")
-monitor = HelloMonitor(config)
-monitor.serve(on_event=lambda e: print(e))
-```
-
-### CLI (v1)
-
-```bash
-pywinhello setup-pico    # Flash CircuitPython firmware to Pico
-pywinhello ping          # Check Pico connectivity
-pywinhello serve -c config.yaml   # Run monitor daemon
-```
-
 ## How the detection works
 
 1. **WinEvent hook** (`EVENT_OBJECT_CREATE`) — zero-polling detection of the `Credential Dialog Xaml Host` window

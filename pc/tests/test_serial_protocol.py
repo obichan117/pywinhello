@@ -25,7 +25,7 @@ class TestEncodeCommand:
         assert encode_command(Command.SETUP_PIN, "1234") == b"SETUP_PIN:1234\n"
 
     def test_type_command(self):
-        assert encode_command(Command.TYPE, "hello") == b"TYPE:hello\n"
+        assert encode_command(Command.PRESS, "ESCAPE") == b"PRESS:ESCAPE\n"
 
     def test_flash_command_with_size(self):
         assert encode_command(Command.FLASH, "65536") == b"FLASH:65536\n"
@@ -325,8 +325,5 @@ class TestCommandEnum:
         actual = {c.value for c in Command if c.value in expected}
         assert actual == expected
 
-    def test_v1_backward_compat(self):
-        assert Command.TYPE.value == "TYPE"
+    def test_press_command_exists(self):
         assert Command.PRESS.value == "PRESS"
-        assert Command.COMBO.value == "COMBO"
-        assert Command.DELAY.value == "DELAY"

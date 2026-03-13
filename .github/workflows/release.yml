@@ -35,13 +35,15 @@ jobs:
       - name: Generate manifest.json
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          FW_HASH=$(sha256sum release/*.uf2 | head -1 | cut -d' ' -f1)
+          FW_HASH_RP2040=$(sha256sum release/*pico.uf2 release/*pico_w.uf2 2>/dev/null | head -1 | cut -d' ' -f1)
+          FW_HASH_RP2350=$(sha256sum release/*pico2.uf2 release/*pico2_w.uf2 2>/dev/null | head -1 | cut -d' ' -f1)
           cat > release/manifest.json << MANIFEST
           {
             "version": "${VERSION}",
             "software_version": "${VERSION}",
             "firmware_version": "${VERSION}",
-            "firmware_hash_rp2040": "sha256:${FW_HASH}",
+            "firmware_hash_rp2040": "sha256:${FW_HASH_RP2040:-}",
+            "firmware_hash_rp2350": "sha256:${FW_HASH_RP2350:-}",
             "changelog_ja": "",
             "changelog_en": "",
             "force_update": false,
@@ -77,4 +79,4 @@ jobs:
             `pywinhello_setup.exe` をダウンロードして実行してください。
             Download and run `pywinhello_setup.exe`.
           draft: false
-          prerelease: ${{ contains(github.ref_name, 'rc') || contains(github.ref_name, 'beta') }}
+          prerelease: ${{ contains(github.ref_name, 'rc') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}

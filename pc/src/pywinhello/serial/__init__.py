@@ -1,4 +1,4 @@
-"""Serial protocol for v2 Pico communication.
+"""Serial protocol for Pico communication.
 
 Provides device detection, command/response protocol, and firmware flashing
 over USB CDC serial.

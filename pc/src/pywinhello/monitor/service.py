@@ -131,7 +131,8 @@ class MonitorService:
         logger.info("Pico detected on %s, arming automation...", port)
 
         try:
-            # Connect and handshake
+            # Disconnect old device before creating new one
+            self._device.disconnect()
             self._device = PicoDevice(port=port)
             info = self._device.connect()
             logger.info(
@@ -141,13 +142,13 @@ class MonitorService:
                 info.ping_info.firmware_version,
             )
 
-            # Read config from Pico (v2 only)
+            # Read config from Pico
             if info.ping_info.protocol_version >= 2:
                 self._config = self._device.protocol.get_config()
                 logger.debug("Pico config: %s", self._config)
             else:
                 self._config = {}
-                logger.info("v1 firmware — no config available")
+                logger.info("Legacy firmware — no config available")
 
             self._arm()
             logger.info("Pico connected, automation armed")

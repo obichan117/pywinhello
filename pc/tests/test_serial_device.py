@@ -82,8 +82,8 @@ class TestPicoDeviceConnect:
 
     @patch("pywinhello.serial.device.SerialProtocol")
     @patch("pywinhello.serial.device.find_pico_port", return_value="COM8")
-    def test_v1_firmware_connect(self, mock_find, mock_proto_cls):
-        """v1 firmware returns plain PONG without metadata."""
+    def test_legacy_firmware_connect(self, mock_find, mock_proto_cls):
+        """Legacy firmware returns plain PONG without metadata."""
         mock_proto = _mock_protocol(
             PingInfo(protocol_version=1, device_type="unknown", firmware_version="0.0.0")
         )

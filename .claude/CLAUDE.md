@@ -2,25 +2,22 @@
 
 Raspberry Pi Pico as a physical "key" for Windows Hello automation. Plug in = automation on, unplug = off.
 
-## Status: v2 rewrite in progress
+End-user Windows app + C firmware — GUI setup wizard, PIN on device, auto-updates.
 
-v1 (current code): Python library + CircuitPython firmware — CLI-based, PIN in env var.
-v2 (target): End-user Windows app + C firmware — GUI setup wizard, PIN on device, auto-updates.
-
-## Quick Start (v1, still active)
+## Quick Start
 
 ```bash
 uv sync                          # Install deps
 uv run pytest                    # Run unit tests
 uv run ruff check                # Lint
-uv run mkdocs build --strict     # Build docs
+cd pc && uv run mkdocs build --strict  # Build docs
 ```
 
-## v2 Architecture (target)
+## Architecture
 
 ```
 pywinhello/
-├── firmware/                    # C (Pico SDK) — replaces CircuitPython
+├── firmware/                    # C (Pico SDK)
 │   ├── CMakeLists.txt
 │   ├── src/
 │   │   ├── main.c              # Init USB, serial, main loop
@@ -47,12 +44,13 @@ pywinhello/
 │   │   │   └── flasher.py     # OTA firmware push
 │   │   ├── gui/
 │   │   │   ├── app.py         # CustomTkinter root
+│   │   │   ├── constants.py   # Shared constants (PIN validation, day keys)
 │   │   │   ├── wizard/        # First-run setup steps
 │   │   │   ├── settings/      # Settings panel tabs
 │   │   │   ├── tests/         # Notepad test, lock test
 │   │   │   └── i18n/          # ja.json, en.json
-│   │   ├── dialog.py          # Windows Security detection (from v1)
-│   │   ├── pin.py             # Focus guards + orchestration (from v1)
+│   │   ├── setup/             # BOOTSEL detection + firmware flashing
+│   │   ├── dialog.py          # Windows Security detection
 │   │   └── models.py          # Dataclasses
 │   ├── tests/
 │   └── pyproject.toml
@@ -71,7 +69,7 @@ pywinhello/
 - **Single firmware**: auto-detects W vs non-W by probing CYW43 chip
 - **Beginner-first**: Japanese GUI, no CLI, no config files, no daemon concept exposed
 
-## Serial Protocol (v2)
+## Serial Protocol
 
 ```
 PC → Pico:
@@ -87,7 +85,7 @@ PC → Pico:
   STATUS                  → OK:pin=yes,schedule=07:45,wifi=ok
 ```
 
-## Key Technical Details (preserved from v1)
+## Key Technical Details
 
 - **UIPI bypass**: Credential Dialog blocks SendInput; USB HID bypasses
 - **Focus guards**: 3-layer verification before PIN typing (prevents leak)
@@ -99,14 +97,14 @@ PC → Pico:
 
 ```
 tasks/
-├── done/        # TASK-001 to TASK-009 (v1 complete)
-├── todo/        # TASK-010 to TASK-029 (v2 backlog)
+├── done/        # TASK-001 to TASK-029 (all complete)
+├── todo/        # (empty)
 └── in-progress/ # Currently active
 ```
 
 ## Testing
 
-- v1: 45 unit tests, all pass
-- v2: 4-layer strategy (unit → hardware integration → OS state → firmware on-device)
+- 219 unit tests, all pass
+- 4-layer strategy (unit → hardware integration → OS state → firmware on-device)
 - `--import-mode=importlib` required in pytest config
 - Hardware tests marked `@pytest.mark.hardware`, excluded from CI

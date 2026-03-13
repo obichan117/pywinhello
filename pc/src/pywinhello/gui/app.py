@@ -10,7 +10,6 @@ Polls for Pico every 2 seconds. Language toggle (ja/en).
 
 from __future__ import annotations
 
-import json
 import logging
 import threading
 from typing import Any
@@ -18,6 +17,7 @@ from typing import Any
 import customtkinter as ctk
 
 from pywinhello.gui.i18n import detect_default_locale, get_locale, set_locale, t
+from pywinhello.serial.device import PicoDevice
 
 logger = logging.getLogger(__name__)
 
@@ -27,90 +27,107 @@ _POLL_INTERVAL_MS = 2000
 
 
 class _PicoConnection:
-    """Manages serial connection to Pico. Thread-safe."""
+    """Manages serial connection to Pico via serial protocol. Thread-safe."""
 
     def __init__(self) -> None:
-        self._hid = None
+        self._device: PicoDevice | None = None
         self._lock = threading.Lock()
-        self._port: str | None = None
 
     @property
     def port(self) -> str | None:
-        return self._port
+        if self._device and self._device.is_connected and self._device.info:
+            return self._device.info.port
+        return None
 
     def detect(self) -> bool:
         """Try to find and connect to a Pico. Returns True if connected."""
         with self._lock:
-            if self._hid is not None:
+            if self._device is not None and self._device.is_connected:
                 try:
-                    if self._hid.ping():
-                        return True
+                    self._device.protocol.ping()
+                    return True
                 except Exception:
                     self._close_locked()
 
             try:
-                from pywinhello.hid import HIDKeyboard, find_pico_port
-
-                port = find_pico_port()
-                if port is None:
-                    return False
-                self._hid = HIDKeyboard(port=port)
-                if self._hid.ping():
-                    self._port = port
-                    return True
-                else:
-                    self._close_locked()
-                    return False
+                device = PicoDevice()
+                device.connect()
+                self._device = device
+                return True
             except Exception:
                 self._close_locked()
                 return False
 
-    def send_command(self, command: str) -> str | None:
-        """Send a command to the Pico. Returns response or None."""
+    def get_config(self) -> dict[str, Any]:
+        """Read configuration JSON from Pico."""
         with self._lock:
-            if self._hid is None:
+            if self._device is None or not self._device.is_connected:
+                return {}
+            try:
+                return self._device.protocol.get_config()
+            except Exception as e:
+                logger.debug("get_config failed: %s", e)
+                return {}
+
+    def get_status(self) -> dict[str, Any]:
+        """Read device status from Pico."""
+        with self._lock:
+            if self._device is None or not self._device.is_connected:
+                return {}
+            try:
+                return self._device.protocol.status()
+            except Exception as e:
+                logger.debug("get_status failed: %s", e)
+                return {}
+
+    def set_config(self, config: dict[str, Any]) -> None:
+        """Write configuration JSON to Pico."""
+        with self._lock:
+            if self._device is None or not self._device.is_connected:
+                raise ConnectionError("Pico is not connected")
+            self._device.protocol.set_config(config)
+
+    def send_command(self, command: str) -> str | None:
+        """Send a raw command string to the Pico. Returns raw response or None.
+
+        Provides backward compatibility for SettingsPanel and other code
+        that uses the raw string-based command interface.
+        """
+        with self._lock:
+            if self._device is None or not self._device.is_connected:
                 return None
             try:
-                return self._hid._send(command)
+                from pywinhello.serial.protocol import Command
+
+                # Parse "COMMAND:payload" format
+                if ":" in command:
+                    cmd_name, payload = command.split(":", 1)
+                else:
+                    cmd_name, payload = command, None
+
+                try:
+                    cmd = Command(cmd_name)
+                except ValueError:
+                    logger.debug("Unknown command: %s", cmd_name)
+                    return None
+
+                resp = self._device.protocol.send(cmd, payload)
+                return resp.raw
             except Exception as e:
                 logger.debug("Command failed: %s", e)
                 return None
-
-    def get_config(self) -> dict[str, Any]:
-        """Send GET_CONFIG and parse response JSON."""
-        resp = self.send_command("GET_CONFIG")
-        if resp and resp.startswith("OK:"):
-            try:
-                return json.loads(resp[3:])
-            except (json.JSONDecodeError, ValueError):
-                pass
-        return {}
-
-    def get_status(self) -> dict[str, Any]:
-        """Send STATUS and parse response."""
-        resp = self.send_command("STATUS")
-        if resp:
-            info: dict[str, Any] = {}
-            clean = resp.replace("OK:", "")
-            for part in clean.split(","):
-                if "=" in part:
-                    k, v = part.split("=", 1)
-                    info[k.strip()] = v.strip()
-            return info
-        return {}
 
     def close(self) -> None:
         with self._lock:
             self._close_locked()
 
     def _close_locked(self) -> None:
-        if self._hid is not None:
+        if self._device is not None:
             try:
-                self._hid.close()
+                self._device.disconnect()
             except Exception:
                 pass
-            self._hid = None
-            self._port = None
+            self._device = None
 
 
 class App(ctk.CTk):
@@ -400,7 +417,7 @@ class App(ctk.CTk):
 
         # Save locale to Pico
         try:
-            self._pico.send_command(f'SET_CONFIG:{{"locale":"{new_locale}"}}')
+            self._pico.set_config({"locale": new_locale})
         except Exception:
             pass
 

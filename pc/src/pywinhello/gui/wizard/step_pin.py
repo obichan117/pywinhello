@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
+from pywinhello.gui.constants import validate_pin
 from pywinhello.gui.i18n import t
 from pywinhello.gui.wizard.base import WizardStep
 
@@ -126,14 +127,8 @@ class PinStep(WizardStep):
         """Validate PIN fields. Returns error message or None."""
         pin = self._pin_entry.get()
         confirm = self._confirm_entry.get()
-
-        if not pin:
-            return t("wizard.step3.pin_empty")
-        if len(pin) < 4:
-            return t("wizard.step3.pin_too_short")
-        if pin != confirm:
-            return t("wizard.step3.pin_mismatch")
-        return None
+        error_key = validate_pin(pin, confirm)
+        return t(error_key) if error_key else None
 
     def _on_register(self) -> None:
         """Validate and send PIN to Pico."""
@@ -154,31 +149,23 @@ class PinStep(WizardStep):
     def _send_pin(self, pin: str) -> None:
         """Send SETUP_PIN command to Pico in background thread."""
         try:
-            from pywinhello.hid import HIDKeyboard
+            from pywinhello.serial.protocol import SerialProtocol
 
             port = self.wizard.collected_data.get("port")
-            with HIDKeyboard(port=port) as hid:
-                # Try v2 SETUP_PIN command
+            if port is None:
+                self.frame.after(0, self._on_pin_failed, "No port available")
+                return
+
+            with SerialProtocol(port=port) as proto:
                 try:
-                    resp = hid._send(f"SETUP_PIN:{pin}")
-                    if resp.startswith("OK"):
-                        self.frame.after(0, self._on_pin_success)
-                        return
-                    else:
-                        self.frame.after(
-                            0,
-                            self._on_pin_failed,
-                            f"Unexpected response: {resp}",
-                        )
-                        return
+                    proto.setup_pin(pin)
+                    self.frame.after(0, self._on_pin_success)
                 except RuntimeError as e:
-                    # If SETUP_PIN not recognized, the PIN is just stored
-                    # by the GUI for later use (v1 compat)
-                    if "unknown command" in str(e).lower():
-                        # v1 firmware: no SETUP_PIN, PIN is managed by PC
-                        self.frame.after(0, self._on_pin_success)
-                        return
-                    raise
+                    self.frame.after(
+                        0,
+                        self._on_pin_failed,
+                        str(e),
+                    )
 
         except Exception as e:
             logger.exception("PIN registration failed")

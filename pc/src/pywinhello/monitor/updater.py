@@ -32,6 +32,7 @@ _UPDATE_DIR = "pywinhello_updates"
 
 # Current software version (read from package metadata at runtime)
 _CURRENT_VERSION: str | None = None
+_VERSION_LOCK = threading.Lock()
 
 
 def get_current_version() -> str:
@@ -40,13 +41,16 @@ def get_current_version() -> str:
     if _CURRENT_VERSION is not None:
         return _CURRENT_VERSION
 
-    try:
-        from importlib.metadata import version
+    with _VERSION_LOCK:
+        if _CURRENT_VERSION is not None:
+            return _CURRENT_VERSION
+        try:
+            from importlib.metadata import version
 
-        _CURRENT_VERSION = version("pywinhello")
-    except Exception:
-        _CURRENT_VERSION = "0.0.0"
-    return _CURRENT_VERSION
+            _CURRENT_VERSION = version("pywinhello")
+        except Exception:
+            _CURRENT_VERSION = "0.0.0"
+        return _CURRENT_VERSION
 
 
 @dataclass(frozen=True)
@@ -498,6 +502,6 @@ class AutoUpdater:
             apply_firmware_update(
                 self._protocol,
                 dest,
-                expected_hash=expected_hash or None,
+                expected_hash=expected_hash if expected_hash else None,
                 expected_version=result.manifest.firmware_version,
             )

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
+from pywinhello.gui.constants import DAY_KEYS, DEFAULT_DAYS
 from pywinhello.gui.i18n import t
 from pywinhello.gui.wizard.base import WizardStep
 
@@ -14,9 +15,6 @@ if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger(__name__)
-
-_DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-_DEFAULT_DAYS = ["mon", "tue", "wed", "thu", "fri"]
 
 
 class ScheduleStep(WizardStep):
@@ -87,8 +85,8 @@ class ScheduleStep(WizardStep):
         checkbox_row.pack(padx=15, pady=(0, 10))
 
         self._day_vars: dict[str, ctk.BooleanVar] = {}
-        for i, day_key in enumerate(_DAY_KEYS):
-            var = ctk.BooleanVar(value=day_key in _DEFAULT_DAYS)
+        for i, day_key in enumerate(DAY_KEYS):
+            var = ctk.BooleanVar(value=day_key in DEFAULT_DAYS)
             self._day_vars[day_key] = var
             cb = ctk.CTkCheckBox(
                 checkbox_row,
@@ -161,32 +159,28 @@ class ScheduleStep(WizardStep):
         )
 
         try:
-            from pywinhello.hid import HIDKeyboard
-            import json
+            from pywinhello.serial.protocol import SerialProtocol
 
             port = self.wizard.collected_data.get("port")
-            config_payload = json.dumps({
-                "schedule": schedule,
-            })
+            if port is None:
+                self._status_label.configure(
+                    text=t("wizard.step4.save_failed", error="No port available"),
+                    text_color="red",
+                )
+                self._saved = True
+                return
 
-            with HIDKeyboard(port=port) as hid:
+            with SerialProtocol(port=port) as proto:
                 try:
-                    resp = hid._send(f"SET_CONFIG:{config_payload}")
-                    if resp.startswith("OK"):
-                        self._saved = True
-                        self._status_label.configure(
-                            text=t("wizard.step4.save_success"), text_color="green"
-                        )
-                    else:
-                        self._status_label.configure(
-                            text=t("wizard.step4.save_failed", error=resp),
-                            text_color="red",
-                        )
-                except RuntimeError:
-                    # v1 firmware: no SET_CONFIG, just mark as saved
+                    proto.set_config({"schedule": schedule})
                     self._saved = True
                     self._status_label.configure(
                         text=t("wizard.step4.save_success"), text_color="green"
+                    )
+                except RuntimeError as e:
+                    self._status_label.configure(
+                        text=t("wizard.step4.save_failed", error=str(e)),
+                        text_color="red",
                     )
         except Exception as e:
             logger.exception("Failed to save schedule")

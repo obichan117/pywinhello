@@ -10,6 +10,8 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 
+from pywinhello.serial.protocol import Command, SerialProtocol
+
 logger = logging.getLogger(__name__)
 
 _TEST_STRING = "pywinhello test"
@@ -79,6 +81,9 @@ def _clear_clipboard() -> None:
 class NotepadTest:
     """Full Notepad typing test with auto-calibration.
 
+    Uses serial protocol HID typing commands (TYPE, PRESS, COMBO, DELAY)
+    to simulate keyboard input via the Pico.
+
     Usage::
 
         test = NotepadTest(port="COM8")
@@ -90,39 +95,56 @@ class NotepadTest:
     def __init__(self, port: str | None = None) -> None:
         self._port = port
         self._proc: subprocess.Popen | None = None
-        self._hid = None
+        self._protocol: SerialProtocol | None = None
 
-    def _get_hid(self):
-        from pywinhello.hid import HIDKeyboard
+    def _get_protocol(self) -> SerialProtocol:
+        from pywinhello.serial.device import find_pico_port
 
-        if self._hid is None:
-            self._hid = HIDKeyboard(port=self._port)
-        return self._hid
+        if self._protocol is None:
+            port = self._port or find_pico_port()
+            if port is None:
+                raise ConnectionError("Pico not found")
+            self._protocol = SerialProtocol(port=port)
+        return self._protocol
 
-    def _close_hid(self) -> None:
-        if self._hid is not None:
+    def _close_protocol(self) -> None:
+        if self._protocol is not None:
             try:
-                self._hid.close()
+                self._protocol.close()
             except Exception:
                 pass
-            self._hid = None
+            self._protocol = None
+
+    def _type_text(self, text: str) -> None:
+        """Type text via Pico HID using the TYPE serial command."""
+        self._get_protocol().send_checked(Command.TYPE, text)
+
+    def _press_key(self, key: str) -> None:
+        """Press a single key via Pico HID using the PRESS serial command."""
+        self._get_protocol().send_checked(Command.PRESS, key)
+
+    def _key_combo(self, *keys: str) -> None:
+        """Press a key combination via Pico HID using the COMBO serial command."""
+        self._get_protocol().send_checked(Command.COMBO, "+".join(keys))
+
+    def _set_delay(self, ms: int) -> None:
+        """Set keystroke delay via Pico HID using the DELAY serial command."""
+        self._get_protocol().send_checked(Command.DELAY, str(ms))
 
     def _read_notepad(self) -> str:
         """Read Notepad content via Ctrl+A, Ctrl+C."""
-        hid = self._get_hid()
         _clear_clipboard()
-        hid.key_combo("CTRL", "A")
+        self._key_combo("CTRL", "A")
         time.sleep(0.2)
-        hid.key_combo("CTRL", "C")
+        self._key_combo("CTRL", "C")
         time.sleep(0.3)
         return _get_clipboard().strip()
 
     def _clear_notepad(self) -> None:
         """Select all and delete in Notepad."""
-        hid = self._get_hid()
-        hid.key_combo("CTRL", "A")
+        self._key_combo("CTRL", "A")
         time.sleep(0.1)
-        hid.press_key("DELETE")
+        self._press_key("DELETE")
         time.sleep(0.2)
 
     def run(
@@ -157,9 +179,9 @@ class NotepadTest:
             return result
 
         try:
-            hid = self._get_hid()
+            self._get_protocol()
         except Exception as e:
-            result.error = f"HID connection failed: {e}"
+            result.error = f"Serial connection failed: {e}"
             _notify("type", "fail")
             return result
 
@@ -167,7 +189,7 @@ class NotepadTest:
             # 2. Type test string
             _notify("type", "running")
             _clear_clipboard()
-            hid.type_text(_TEST_STRING)
+            self._type_text(_TEST_STRING)
             time.sleep(0.5)
             actual = self._read_notepad()
             result.actual_text = actual
@@ -179,10 +201,10 @@ class NotepadTest:
             # 3. Speed calibration
             _notify("speed", "running")
             for interval in _SPEED_INTERVALS:
-                hid.set_delay(interval)
+                self._set_delay(interval)
                 time.sleep(0.2)
                 _clear_clipboard()
-                hid.type_text(_SPEED_TEST_STRING)
+                self._type_text(_SPEED_TEST_STRING)
                 time.sleep(0.8)
                 text = self._read_notepad()
                 ok = text == _SPEED_TEST_STRING
@@ -190,7 +212,7 @@ class NotepadTest:
 
                 if ok and result.optimal_interval is None:
                     result.optimal_interval = interval
-                    hid.set_delay(interval)
+                    self._set_delay(interval)
                     break
 
                 self._clear_notepad()
@@ -201,9 +223,9 @@ class NotepadTest:
 
             # 4. Special keys
             _notify("special", "running")
-            hid.type_text("line1")
-            hid.press_key("ENTER")
-            hid.type_text("line2")
+            self._type_text("line1")
+            self._press_key("ENTER")
+            self._type_text("line2")
             time.sleep(0.5)
             text = self._read_notepad()
             result.special_keys_ok = (
@@ -214,13 +236,13 @@ class NotepadTest:
             # 5. Close Notepad
             _notify("close", "running")
             self._clear_notepad()
-            hid.key_combo("ALT", "F4")
+            self._key_combo("ALT", "F4")
             time.sleep(1.0)
             # Dismiss save dialog
             try:
-                hid.press_key("TAB")
+                self._press_key("TAB")
                 time.sleep(0.1)
-                hid.press_key("ENTER")
+                self._press_key("ENTER")
             except Exception:
                 pass
             time.sleep(0.5)
@@ -231,7 +253,7 @@ class NotepadTest:
             logger.exception("Notepad test error")
             result.error = str(e)
         finally:
-            self._close_hid()
+            self._close_protocol()
 
         return result
 

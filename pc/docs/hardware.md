@@ -21,9 +21,9 @@ WiFi models add two features that non-W models can't do:
 
 Non-W models still support scheduled wake via Windows Task Scheduler (the PC monitor creates the task). The Pico W version is more reliable because it doesn't depend on the PC's clock.
 
-## Firmware (v2)
+## Firmware
 
-The v2 firmware is written in C using the Pico SDK (replacing v1's CircuitPython). This gives:
+The firmware is written in C using the Pico SDK. This gives:
 
 - **Dual USB interface** — HID keyboard + CDC serial on one connection
 - **AES-256 encrypted PIN** — key derived from Pico's unique hardware ID
@@ -83,4 +83,4 @@ Subsequent firmware updates happen over serial (OTA) — no BOOTSEL needed.
 : The firmware uses US keyboard layout for HID reports. PIN digits (0-9) are unaffected by keyboard layout, but special characters may differ.
 
 **Two COM ports in Device Manager**
-: Normal for v1 (CircuitPython) firmware. v2 firmware uses a single COM port for CDC serial alongside the HID interface.
+: The firmware uses a single COM port for CDC serial alongside the HID interface. If you see two, it may be from prior firmware.

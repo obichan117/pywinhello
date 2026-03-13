@@ -1,11 +1,11 @@
-"""Command/response encoding for all v2 serial protocol commands.
+"""Command/response encoding for all serial protocol commands.
 
 Protocol is text-based, newline-delimited::
 
     COMMAND:payload\\n  ->  OK\\n | OK:data\\n | ERR:message\\n
 
-v2 commands:
-    PING          -> PONG:v2:rp2040:1.0.0   (device type + firmware version)
+Commands:
+    PING          -> PONG:<device>:<version>   (device type + firmware version)
     GET_CONFIG    -> OK:{json}
     SET_CONFIG:{json} -> OK
     SETUP_PIN:{pin}   -> OK
@@ -15,12 +15,10 @@ v2 commands:
     GET_LOG       -> OK:{json array}
     FLASH:{size}  -> READY  (then stream binary)
     STATUS        -> OK:{json}
-
-v1 backward-compatible commands (still supported):
-    TYPE:{text}   -> OK
-    PRESS:{key}   -> OK
-    COMBO:{k+k}   -> OK
-    DELAY:{ms}    -> OK
+    TYPE:{text}   -> OK  (type arbitrary text)
+    PRESS:{key}   -> OK  (press named key)
+    COMBO:{k+k}   -> OK  (key combination)
+    DELAY:{ms}    -> OK  (set keystroke delay)
 """
 
 from __future__ import annotations
@@ -29,7 +27,7 @@ import json
 import logging
 import threading
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import serial as pyserial
@@ -37,10 +35,10 @@ import serial as pyserial
 logger = logging.getLogger(__name__)
 
 
-class Command(str, Enum):
-    """All v2 serial protocol commands."""
+class Command(StrEnum):
+    """All serial protocol commands."""
 
-    # v2 commands
+    # Core commands
     PING = "PING"
     GET_CONFIG = "GET_CONFIG"
     SET_CONFIG = "SET_CONFIG"
@@ -52,11 +50,8 @@ class Command(str, Enum):
     FLASH = "FLASH"
     STATUS = "STATUS"
 
-    # v1 backward-compatible commands
-    TYPE = "TYPE"
+    # HID typing commands (used by monitor for ESCAPE fallback)
     PRESS = "PRESS"
-    COMBO = "COMBO"
-    DELAY = "DELAY"
 
 
 @dataclass(frozen=True)
@@ -85,7 +80,7 @@ class PingInfo:
     """Parsed PING response with device metadata."""
 
     protocol_version: int
-    """Protocol version (1 for v1, 2 for v2)."""
+    """Protocol version number."""
 
     device_type: str
     """Device type string (e.g. 'rp2040', 'rp2350')."""
@@ -106,10 +101,7 @@ _COMMAND_TIMEOUTS: dict[Command, float] = {
     Command.GET_LOG: 5.0,
     Command.FLASH: 10.0,
     Command.STATUS: 2.0,
-    Command.TYPE: 5.0,
     Command.PRESS: 2.0,
-    Command.COMBO: 2.0,
-    Command.DELAY: 2.0,
 }
 
 _DEFAULT_TIMEOUT = 2.0
@@ -167,9 +159,9 @@ def parse_ping(response: Response) -> PingInfo:
     """Parse a PING response into PingInfo.
 
     Handles multiple firmware response formats:
-    - v1: ``PONG`` (no metadata)
-    - v2 documented: ``PONG:v2:rp2040:1.0.0`` (colon-separated)
-    - v2 actual firmware: ``OK:pico_w,1.0.0`` (comma-separated board + version)
+    - Legacy: ``PONG`` (no metadata)
+    - Colon format: ``PONG:2:rp2040:1.0.0`` (colon-separated)
+    - Comma format: ``OK:pico_w,1.0.0`` (comma-separated board + version)
 
     Args:
         response: The parsed response from a PING command.
@@ -181,7 +173,7 @@ def parse_ping(response: Response) -> PingInfo:
         raise ValueError(f"PING failed: {response.data}")
 
     if not response.data:
-        # v1 firmware — just PONG with no metadata
+        # Legacy firmware — just PONG with no metadata
         return PingInfo(protocol_version=1, device_type="unknown", firmware_version="0.0.0")
 
     # Firmware format: "pico_w,1.0.0" (comma-separated, in OK:data)
@@ -195,11 +187,11 @@ def parse_ping(response: Response) -> PingInfo:
             firmware_version=firmware_version,
         )
 
-    # PONG format: "v2:rp2040:1.0.0" (colon-separated with protocol prefix)
+    # PONG format: "2:rp2040:1.0.0" (colon-separated with protocol prefix)
     parts = response.data.split(":")
     if len(parts) >= 3:
         try:
-            proto = int(parts[0].lstrip("v"))
+            proto = int(parts[0][1:] if parts[0].startswith("v") else parts[0])
         except ValueError:
             proto = 2
         return PingInfo(
@@ -214,7 +206,7 @@ def parse_ping(response: Response) -> PingInfo:
 
 
 class SerialProtocol:
-    """Thread-safe serial protocol handler for v2 Pico communication.
+    """Thread-safe serial protocol handler for Pico communication.
 
     Wraps a pyserial.Serial connection with command encoding, response parsing,
     and per-command timeout handling.

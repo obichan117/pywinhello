@@ -44,8 +44,6 @@ The monitor package runs as an invisible background process.
 
 ::: pywinhello.monitor.scheduler_sync.sync_schedule
 
-::: pywinhello.monitor.scheduler_sync.enable_wake_timers
-
 ::: pywinhello.monitor.updater.AutoUpdater
 
 ::: pywinhello.monitor.updater.check_for_updates
@@ -58,7 +56,7 @@ First-run firmware flashing for Pico in BOOTSEL mode.
 
 ::: pywinhello.setup.flash_uf2
 
-::: pywinhello.setup.get_bundled_firmware
+::: pywinhello.setup.list_bundled_firmware
 
 ## Models
 

@@ -54,18 +54,6 @@ class FlashResult:
     """Error message if the flash failed."""
 
 
-def compute_sha256(path: Path) -> str:
-    """Compute the SHA-256 hex digest of a file."""
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        while True:
-            chunk = f.read(8192)
-            if not chunk:
-                break
-            h.update(chunk)
-    return h.hexdigest()
-
-
 def flash_firmware(
     protocol: SerialProtocol,
     firmware_path: str | Path,
@@ -214,7 +202,7 @@ def flash_and_verify(
                     firmware_path=result.firmware_path,
                     size=result.size,
                     sha256=result.sha256,
-                    elapsed=time.time() - (time.time() - result.elapsed),
+                    elapsed=result.elapsed,
                     error=(
                         f"Version mismatch after flash: "
                         f"expected {expected_version}, got {ping_info.firmware_version}"
