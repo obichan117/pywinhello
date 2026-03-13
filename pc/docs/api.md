@@ -1,8 +1,6 @@
 # API Reference
 
-## v2 Modules
-
-### Serial Protocol
+## Serial Protocol
 
 The serial package handles all PC ↔ Pico communication.
 
@@ -20,11 +18,13 @@ The serial package handles all PC ↔ Pico communication.
 
 ::: pywinhello.serial.device.ConnectionState
 
+::: pywinhello.serial.device.find_pico_port
+
 ::: pywinhello.serial.flasher.flash_firmware
 
 ::: pywinhello.serial.flasher.FlashResult
 
-### Monitor
+## Monitor
 
 The monitor package runs as an invisible background process.
 
@@ -44,39 +44,25 @@ The monitor package runs as an invisible background process.
 
 ::: pywinhello.monitor.scheduler_sync.sync_schedule
 
-::: pywinhello.monitor.scheduler_sync.enable_wake_timers
-
 ::: pywinhello.monitor.updater.AutoUpdater
 
 ::: pywinhello.monitor.updater.check_for_updates
 
-## v1 Modules (still available)
+## Setup
 
-### Top-level functions
+First-run firmware flashing for Pico in BOOTSEL mode.
 
-::: pywinhello.pin.enter_pin
+::: pywinhello.setup.find_bootsel_drive
 
-::: pywinhello.config.load_config
+::: pywinhello.setup.flash_uf2
 
-### Models
+::: pywinhello.setup.list_bundled_firmware
+
+## Models
 
 ::: pywinhello.models.AuthEvent
 
-::: pywinhello.models.AppConfig
-
-::: pywinhello.models.MonitorConfig
-
-### Monitor (v1)
-
-::: pywinhello.monitor.HelloMonitor
-
-### HID Keyboard
-
-::: pywinhello.hid.HIDKeyboard
-
-::: pywinhello.hid.find_pico_port
-
-### Dialog Detection
+## Dialog Detection
 
 ::: pywinhello.dialog.is_visible
 
@@ -87,9 +73,3 @@ The monitor package runs as an invisible background process.
 ::: pywinhello.dialog.wait_for_dismiss
 
 ::: pywinhello.dialog.get_owner_exe
-
-### Pico Setup (v1)
-
-::: pywinhello.setup.run_setup
-
-::: pywinhello.setup.verify_pico

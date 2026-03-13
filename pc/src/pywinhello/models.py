@@ -2,7 +2,30 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from enum import Enum
+
+
+class BoardVariant(Enum):
+    """Pico board variants — determines which firmware binary to flash."""
+
+    PICO = "pico"
+    PICO_W = "pico_w"
+    PICO_2 = "pico_2"
+    PICO_2_W = "pico_2_w"
+
+
+# Adafruit VID used by all Raspberry Pi Pico boards
+PICO_VID = 0x239A
+
+# USB PID → board variant mapping
+BOARD_BY_PID: dict[int, BoardVariant] = {
+    0x80F4: BoardVariant.PICO,
+    0x8058: BoardVariant.PICO_W,
+    0x8120: BoardVariant.PICO_W,
+    0x8150: BoardVariant.PICO_2,
+    0x8160: BoardVariant.PICO_2_W,
+}
 
 
 @dataclass
@@ -28,32 +51,3 @@ class AuthEvent:
 
     error: str | None = None
     """Error message if something went wrong."""
-
-
-@dataclass
-class AppConfig:
-    """Per-application PIN configuration."""
-
-    exe: str
-    """Process executable name (e.g. 'MarketSpeed2.exe')."""
-
-    pin: str
-    """Windows Hello PIN for this application."""
-
-
-
-@dataclass
-class MonitorConfig:
-    """Configuration for the HelloMonitor daemon."""
-
-    apps: list[AppConfig] = field(default_factory=list)
-    """List of per-application configurations."""
-
-    hid_port: str | None = None
-    """COM port for Pico HID bridge. None = auto-detect."""
-
-    inter_key_delay_ms: int = 50
-    """Delay between keystrokes in milliseconds."""
-
-    dialog_wait_timeout: float = 5.0
-    """Seconds to wait for dialog to be ready after detection."""

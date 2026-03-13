@@ -7,15 +7,14 @@ import urllib.error
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-
 from pywinhello.monitor.updater import (
     AutoUpdater,
     ReleaseManifest,
     UpdateCheck,
     apply_software_update,
+    check_for_updates,
     cleanup_old_update,
     compare_versions,
-    check_for_updates,
 )
 
 

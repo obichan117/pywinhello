@@ -21,7 +21,7 @@ pywinhello is a two-part system — C firmware on a Raspberry Pi Pico and a Pyth
 ┌─ PC Software (Python) ─────────────────────────────────────────────┐
 │                                                                     │
 │  serial/                                                            │
-│  ├── protocol.py      Command/response encoding (all v2 commands)   │
+│  ├── protocol.py      Command/response encoding                      │
 │  ├── device.py        Pico auto-detection, handshake, reconnect     │
 │  └── flasher.py       OTA firmware push over serial                 │
 │                                                                     │
@@ -124,7 +124,7 @@ Debuggable with any serial terminal. No binary framing overhead for the command 
 
 | Command | Response | What it does |
 |---------|----------|--------------|
-| `PING` | `PONG:v2:<device>:<version>` | Handshake — returns device type and firmware version |
+| `PING` | `PONG:<device>:<version>` | Handshake — returns device type and firmware version |
 | `STATUS` | `OK:pin=yes\|no,schedule=HH:MM,wifi=ok\|off` | Quick device status |
 | `GET_CONFIG` | `OK:<json>` | Read full config from Pico flash |
 | `SET_CONFIG:<json>` | `OK` | Write config to Pico flash |
@@ -134,8 +134,8 @@ Debuggable with any serial terminal. No binary framing overhead for the command 
 | `HELLO` | `OK` | Type stored PIN only (for Windows Hello dialog — no Enter) |
 | `GET_LOG` | `OK:<json array>` | Read last 20 events from circular log |
 | `FLASH:<size>` | `READY` → binary stream | OTA firmware update |
-| `TYPE:<text>` | `OK` | v1 compat: type arbitrary text |
-| `PRESS:<key>` | `OK` | v1 compat: press named key |
+| `TYPE:<text>` | `OK` | Type arbitrary text |
+| `PRESS:<key>` | `OK` | Press named key |
 
 ### Config JSON
 
@@ -182,7 +182,7 @@ cd pc
 uv run pytest tests/ --import-mode=importlib -v
 ```
 
-**205 tests** covering serial protocol, device detection, USB watcher, lock detector, hello detector, scheduler sync, auto-updater, and all v1 API surfaces.
+**222 tests** covering serial protocol, device detection, USB watcher, lock detector, hello detector, scheduler sync, auto-updater, GUI i18n, and setup provisioning.
 
 ## Release Process
 

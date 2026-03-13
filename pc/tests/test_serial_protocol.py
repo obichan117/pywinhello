@@ -25,7 +25,7 @@ class TestEncodeCommand:
         assert encode_command(Command.SETUP_PIN, "1234") == b"SETUP_PIN:1234\n"
 
     def test_type_command(self):
-        assert encode_command(Command.TYPE, "hello") == b"TYPE:hello\n"
+        assert encode_command(Command.PRESS, "ESCAPE") == b"PRESS:ESCAPE\n"
 
     def test_flash_command_with_size(self):
         assert encode_command(Command.FLASH, "65536") == b"FLASH:65536\n"
@@ -127,6 +127,26 @@ class TestParsePing:
         resp = Response(raw="PONG:rp2040", ok=True, data="rp2040")
         info = parse_ping(resp)
         assert info.device_type == "rp2040"
+
+    def test_firmware_comma_format_pico_w(self):
+        """Firmware sends OK:pico_w,1.0.0 — comma-separated board + version."""
+        resp = Response(raw="OK:pico_w,1.0.0", ok=True, data="pico_w,1.0.0")
+        info = parse_ping(resp)
+        assert info.protocol_version == 2
+        assert info.device_type == "pico_w"
+        assert info.firmware_version == "1.0.0"
+
+    def test_firmware_comma_format_pico_2_w(self):
+        resp = Response(raw="OK:pico_2_w,2.1.0", ok=True, data="pico_2_w,2.1.0")
+        info = parse_ping(resp)
+        assert info.device_type == "pico_2_w"
+        assert info.firmware_version == "2.1.0"
+
+    def test_firmware_comma_format_pico(self):
+        resp = Response(raw="OK:pico,1.0.0", ok=True, data="pico,1.0.0")
+        info = parse_ping(resp)
+        assert info.device_type == "pico"
+        assert info.firmware_version == "1.0.0"
 
 
 def _make_serial_mock(readline_value: bytes = b"OK\n") -> MagicMock:
@@ -305,8 +325,5 @@ class TestCommandEnum:
         actual = {c.value for c in Command if c.value in expected}
         assert actual == expected
 
-    def test_v1_backward_compat(self):
-        assert Command.TYPE.value == "TYPE"
+    def test_press_command_exists(self):
         assert Command.PRESS.value == "PRESS"
-        assert Command.COMBO.value == "COMBO"
-        assert Command.DELAY.value == "DELAY"

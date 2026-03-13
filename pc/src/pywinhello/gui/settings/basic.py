@@ -5,18 +5,18 @@ from __future__ import annotations
 import json
 import logging
 import threading
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import customtkinter as ctk
 
+from pywinhello.gui.constants import DAY_KEYS, validate_pin
 from pywinhello.gui.i18n import t
 
 if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger(__name__)
-
-_DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
 
 class BasicSettings(ctk.CTkFrame):
@@ -143,7 +143,7 @@ class BasicSettings(ctk.CTkFrame):
         cb_frame = ctk.CTkFrame(days_row, fg_color="transparent")
         cb_frame.pack(side="left", padx=10)
 
-        for day_key in _DAY_KEYS:
+        for day_key in DAY_KEYS:
             var = ctk.BooleanVar(value=day_key in active_days)
             self._day_vars[day_key] = var
             ctk.CTkCheckBox(
@@ -284,11 +284,9 @@ class _PinChangeDialog(ctk.CTkToplevel):
         pin = self._pin_entry.get()
         confirm = self._confirm_entry.get()
 
-        if not pin or len(pin) < 4:
-            self._error_label.configure(text=t("wizard.step3.pin_too_short"))
-            return
-        if pin != confirm:
-            self._error_label.configure(text=t("wizard.step3.pin_mismatch"))
+        error_key = validate_pin(pin, confirm)
+        if error_key:
+            self._error_label.configure(text=t(error_key))
             return
 
         try:

@@ -1,11 +1,8 @@
-"""Refactored Windows Hello dialog detection with per-app whitelist filtering.
+"""Windows Hello dialog detection with per-app whitelist filtering.
 
-Reuses the WinEvent hook pattern from v1 ``monitor.py`` but:
-1. Sends HELLO serial command instead of typing PIN directly
-2. Filters by per-app whitelist from Pico config
-3. Auto-discovers new apps and adds them to config
-
-The core WinEvent + focus guard logic is preserved from v1.
+Sends HELLO serial command when a Windows Hello dialog is detected.
+Filters by per-app whitelist from Pico config and auto-discovers new apps.
+Uses WinEvent hooks for zero-polling dialog detection and 3-layer focus guards.
 """
 
 from __future__ import annotations
@@ -84,8 +81,8 @@ class AppWhitelist:
 class HelloDetector:
     """Detects Windows Hello dialogs and sends HELLO commands to the Pico.
 
-    Refactored from v1 HelloMonitor to use serial HELLO command instead of
-    directly typing PIN via HID. Adds per-app whitelist filtering.
+    Sends HELLO serial command to type PIN via Pico HID. Includes per-app
+    whitelist filtering.
 
     Usage::
 
@@ -149,7 +146,7 @@ class HelloDetector:
         logger.info("HelloDetector stopped")
 
     def _detection_loop(self) -> None:
-        """Main loop — uses WinEvent hook via handle_next pattern from v1."""
+        """Main loop — uses WinEvent hook via handle_next pattern."""
         while not self._stop_event.is_set():
             try:
                 event = self._handle_next(timeout=5.0)
@@ -170,8 +167,8 @@ class HelloDetector:
     def _handle_next(self, timeout: float = 60.0) -> AuthEvent:
         """Wait for the next Windows Hello dialog and handle it.
 
-        Uses polling-based detection (simplified from v1 WinEvent hook
-        to avoid ctypes callback GC issues in long-running daemon).
+        Uses polling-based detection (avoids ctypes callback GC issues
+        in long-running daemon).
 
         Args:
             timeout: Maximum seconds to wait.
@@ -184,8 +181,8 @@ class HelloDetector:
             return self._handle_dialog()
 
         # Poll for dialog appearance
-        start = time.time()
-        while time.time() - start < timeout:
+        start = time.monotonic()
+        while time.monotonic() - start < timeout:
             if self._stop_event.is_set():
                 return AuthEvent(error="Stopped")
 
@@ -207,7 +204,7 @@ class HelloDetector:
         5. Auto-discover new apps
         """
         event = AuthEvent()
-        start = time.time()
+        start = time.monotonic()
 
         # Identify owner process
         owner_exe = dialog.get_owner_exe()
@@ -225,11 +222,11 @@ class HelloDetector:
         # Check whitelist
         if not self._whitelist.is_allowed(owner_exe):
             event.error = f"App '{owner_exe}' disabled in whitelist"
-            event.elapsed = time.time() - start
+            event.elapsed = time.monotonic() - start
             logger.info("Ignoring dialog from disabled app: %s", owner_exe)
             return event
 
-        # Focus the dialog (3-layer verification from v1)
+        # Focus the dialog (3-layer verification)
         dialog.focus()
         time.sleep(self._focus_settle_delay)
 
@@ -238,14 +235,14 @@ class HelloDetector:
             time.sleep(self._focus_settle_delay)
             if not dialog.is_foreground():
                 event.error = "credential dialog lost focus — aborting"
-                event.elapsed = time.time() - start
+                event.elapsed = time.monotonic() - start
                 logger.warning(event.error)
                 return event
 
         # Final focus gate right before sending command
         if not dialog.is_foreground():
             event.error = "credential dialog lost focus — aborting"
-            event.elapsed = time.time() - start
+            event.elapsed = time.monotonic() - start
             logger.warning(event.error)
             return event
 
@@ -274,5 +271,5 @@ class HelloDetector:
             event.error = str(e)
             logger.error("HELLO command failed: %s", e)
 
-        event.elapsed = time.time() - start
+        event.elapsed = time.monotonic() - start
         return event

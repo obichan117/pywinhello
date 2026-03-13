@@ -19,7 +19,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -34,7 +34,7 @@ _RETRY_COUNT = 3
 _POLL_INTERVAL_SEC = 1.0
 
 
-class UnlockMode(str, Enum):
+class UnlockMode(StrEnum):
     """When to auto-unlock the desktop."""
 
     ALWAYS = "always"

@@ -1,7 +1,7 @@
 """Pico device detection, handshake, and connection lifecycle.
 
-Reuses VID:PID detection logic from ``pywinhello.hid`` and adds v2 protocol
-support with connection state management and automatic reconnection.
+Detects Pico devices by VID:PID over USB CDC serial, performs protocol
+handshake, and manages connection state with automatic reconnection.
 """
 
 from __future__ import annotations
@@ -10,15 +10,56 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
-from pywinhello.hid import find_pico_port
+from serial.tools import list_ports
+
+from pywinhello.models import BOARD_BY_PID, PICO_VID
 from pywinhello.serial.protocol import PingInfo, SerialProtocol
 
 logger = logging.getLogger(__name__)
 
+# Derived from models — kept as a set for fast lookup
+PICO_PIDS = set(BOARD_BY_PID.keys())
 
-class ConnectionState(str, Enum):
+
+def find_pico_port() -> str | None:
+    """Auto-detect the Pico CDC serial port by VID:PID.
+
+    Scans all COM ports and returns the one matching a known Pico VID:PID.
+    When multiple matches exist (e.g. dual CDC), picks the highest-numbered port.
+
+    Returns:
+        COM port name (e.g. ``"COM8"``) or ``None`` if not found.
+    """
+    ports = list_ports.comports()
+    logger.debug("Scanning %d COM ports for Pico", len(ports))
+
+    candidates = [p for p in ports if p.vid == PICO_VID and p.pid in PICO_PIDS]
+    if candidates:
+        def _port_number(p: object) -> int:
+            name = getattr(p, "device", "")
+            # Extract numeric suffix for proper ordering (COM9 < COM10)
+            digits = "".join(c for c in name if c.isdigit())
+            return int(digits) if digits else 0
+
+        best = max(candidates, key=_port_number)
+        logger.info("Found Pico on %s (pid=0x%04X)", best.device, best.pid)
+        return best.device
+
+    # Fallback: VID-only match (may match other Adafruit devices)
+    for p in ports:
+        if p.vid == PICO_VID:
+            logger.warning(
+                "Found device with Pico VID but unknown PID (0x%04X) on %s: %s",
+                p.pid or 0, p.device, p.description,
+            )
+            return p.device
+
+    logger.debug("No Pico found among: %s", [(p.device, p.vid, p.pid) for p in ports])
+    return None
+
+class ConnectionState(StrEnum):
     """Device connection states."""
 
     DISCONNECTED = "disconnected"
@@ -42,7 +83,7 @@ class DeviceInfo:
 
 
 class PicoDevice:
-    """Manages connection to a Pico over serial with v2 protocol support.
+    """Manages connection to a Pico over serial with protocol support.
 
     Handles auto-detection, handshake, connection state, and reconnection.
 
@@ -156,7 +197,7 @@ class PicoDevice:
                 try:
                     self._protocol.close()
                 except Exception:
-                    pass
+                    logger.debug("Error closing serial port", exc_info=True)
                 self._protocol = None
             self._info = None
             self._state = ConnectionState.DISCONNECTED

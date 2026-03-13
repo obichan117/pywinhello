@@ -12,9 +12,10 @@ import customtkinter as ctk
 
 from pywinhello.gui.i18n import t
 from pywinhello.gui.wizard.base import WizardStep
+from pywinhello.serial.protocol import Command, SerialProtocol
 
 if TYPE_CHECKING:
-    from pywinhello.gui.wizard import SetupWizard
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -208,12 +209,12 @@ class TestStep(WizardStep):
 
         threading.Thread(target=self._run_tests, daemon=True).start()
 
-    def _get_hid(self):
-        """Get an HIDKeyboard connected to the Pico."""
-        from pywinhello.hid import HIDKeyboard
-
+    def _get_protocol(self) -> SerialProtocol:
+        """Get a SerialProtocol connected to the Pico."""
         port = self.wizard.collected_data.get("port")
-        return HIDKeyboard(port=port)
+        if port is None:
+            raise ConnectionError("No port available")
+        return SerialProtocol(port=port)
 
     def _run_tests(self) -> None:
         """Execute all test steps sequentially."""
@@ -222,10 +223,10 @@ class TestStep(WizardStep):
         # Step 1: Open Notepad
         self._set_status("open", t("test.notepad.status_running"), "white")
         try:
-            proc = subprocess.Popen(["notepad.exe"])
+            subprocess.Popen(["notepad.exe"])
             time.sleep(1.5)  # Wait for window to appear and get focus
             self._set_status("open", t("test.notepad.status_pass"), "green")
-        except Exception as e:
+        except Exception:
             self._set_status("open", t("test.notepad.status_fail"), "red")
             logger.exception("Failed to open Notepad")
             passed = False
@@ -233,9 +234,9 @@ class TestStep(WizardStep):
             return
 
         try:
-            hid = self._get_hid()
+            proto = self._get_protocol()
         except Exception as e:
-            self._set_status("type", f"HID error: {e}", "red")
+            self._set_status("type", f"Serial error: {e}", "red")
             self._finish_tests(False)
             return
 
@@ -243,13 +244,13 @@ class TestStep(WizardStep):
             # Step 2: Type test string
             self._set_status("type", t("test.notepad.status_running"), "white")
             _set_clipboard_text("")  # Clear clipboard
-            hid.type_text(_TEST_STRING)
+            proto.send_checked(Command.TYPE, _TEST_STRING)
             time.sleep(0.5)
 
             # Read back via Ctrl+A, Ctrl+C
-            hid.key_combo("CTRL", "A")
+            proto.send_checked(Command.COMBO, "CTRL+A")
             time.sleep(0.2)
-            hid.key_combo("CTRL", "C")
+            proto.send_checked(Command.COMBO, "CTRL+C")
             time.sleep(0.3)
             actual = _get_clipboard_text().strip()
 
@@ -260,9 +261,9 @@ class TestStep(WizardStep):
                 passed = False
 
             # Clear notepad for speed test
-            hid.key_combo("CTRL", "A")
+            proto.send_checked(Command.COMBO, "CTRL+A")
             time.sleep(0.1)
-            hid.press_key("DELETE")
+            proto.send_checked(Command.PRESS, "DELETE")
             time.sleep(0.2)
 
             # Step 3: Speed calibration
@@ -276,16 +277,16 @@ class TestStep(WizardStep):
                 )
 
                 # Set delay and type
-                hid.set_delay(interval)
+                proto.send_checked(Command.DELAY, str(interval))
                 time.sleep(0.2)
                 _set_clipboard_text("")
-                hid.type_text(_SPEED_TEST_STRING)
+                proto.send_checked(Command.TYPE, _SPEED_TEST_STRING)
                 time.sleep(0.8)
 
                 # Read back
-                hid.key_combo("CTRL", "A")
+                proto.send_checked(Command.COMBO, "CTRL+A")
                 time.sleep(0.2)
-                hid.key_combo("CTRL", "C")
+                proto.send_checked(Command.COMBO, "CTRL+C")
                 time.sleep(0.3)
                 result = _get_clipboard_text().strip()
 
@@ -294,7 +295,7 @@ class TestStep(WizardStep):
                     break
 
                 # Clear for next attempt
-                hid.press_key("DELETE")
+                proto.send_checked(Command.PRESS, "DELETE")
                 time.sleep(0.2)
 
             if optimal is not None:
@@ -308,31 +309,32 @@ class TestStep(WizardStep):
                     {"text": t("wizard.step2.speed_calibrated", interval=optimal)},
                 )
                 # Save calibrated interval to Pico
-                hid.set_delay(optimal)
+                proto.send_checked(Command.DELAY, str(optimal))
             else:
                 self._set_status("speed", t("wizard.step2.speed_all_failed"), "red")
                 passed = False
 
             # Clear for special key test
-            hid.key_combo("CTRL", "A")
+            proto.send_checked(Command.COMBO, "CTRL+A")
             time.sleep(0.1)
-            hid.press_key("DELETE")
+            proto.send_checked(Command.PRESS, "DELETE")
             time.sleep(0.2)
 
             # Step 4: Special keys
             self._set_status("special", t("test.notepad.status_running"), "white")
-            hid.type_text("line1")
-            hid.press_key("ENTER")
-            hid.type_text("line2")
+            proto.send_checked(Command.TYPE, "line1")
+            proto.send_checked(Command.PRESS, "ENTER")
+            proto.send_checked(Command.TYPE, "line2")
             time.sleep(0.5)
 
-            hid.key_combo("CTRL", "A")
+            proto.send_checked(Command.COMBO, "CTRL+A")
             time.sleep(0.2)
-            hid.key_combo("CTRL", "C")
+            proto.send_checked(Command.COMBO, "CTRL+C")
             time.sleep(0.3)
             result = _get_clipboard_text().strip()
 
-            if "line1" in result and "line2" in result and result.index("line2") > result.index("line1"):
+            has_both = "line1" in result and "line2" in result
+            if has_both and result.index("line2") > result.index("line1"):
                 self._set_status("special", t("wizard.step2.special_pass"), "green")
             else:
                 self._set_status("special", t("wizard.step2.special_fail"), "red")
@@ -340,31 +342,31 @@ class TestStep(WizardStep):
 
             # Step 5: Close Notepad
             self._set_status("close", t("test.notepad.status_running"), "white")
-            hid.key_combo("CTRL", "A")
+            proto.send_checked(Command.COMBO, "CTRL+A")
             time.sleep(0.1)
-            hid.press_key("DELETE")
+            proto.send_checked(Command.PRESS, "DELETE")
             time.sleep(0.2)
-            hid.key_combo("ALT", "F4")
+            proto.send_checked(Command.COMBO, "ALT+F4")
             time.sleep(1.0)
 
-            # Handle save dialog if it appears - press "Don't Save" (N key or Tab+Enter)
+            # Handle save dialog if it appears - press "Don't Save" (Tab+Enter)
             try:
-                hid.press_key("TAB")
+                proto.send_checked(Command.PRESS, "TAB")
                 time.sleep(0.1)
-                hid.press_key("ENTER")
+                proto.send_checked(Command.PRESS, "ENTER")
             except Exception:
                 pass
 
             time.sleep(0.5)
             self._set_status("close", t("wizard.step2.notepad_closed"), "green")
 
-            hid.close()
+            proto.close()
 
-        except Exception as e:
+        except Exception:
             logger.exception("Test failed")
             passed = False
             try:
-                hid.close()
+                proto.close()
             except Exception:
                 pass
 

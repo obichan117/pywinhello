@@ -16,21 +16,12 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from pywinhello.hid import find_pico_port
+from pywinhello.models import PICO_VID
+from pywinhello.serial.device import find_pico_port
 
 logger = logging.getLogger(__name__)
 
-# Raspberry Pi Pico USB identifiers (same as hid.py)
-PICO_VID = 0x239A
-PICO_PIDS = {
-    0x8058,  # Pico W
-    0x8120,  # Pico W (alt)
-    0x80F4,  # Pico (non-W)
-    0x8150,  # Pico 2 (non-W)
-    0x8160,  # Pico 2 W
-}
-
-# VID:PID match string for WMI queries
+# VID:PID match string for WMI queries (VID from models.py — single source of truth)
 _PICO_VID_HEX = f"VID_{PICO_VID:04X}"
 
 

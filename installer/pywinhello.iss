@@ -3,7 +3,7 @@
 
 [Setup]
 AppName=pywinhello
-AppVersion=2.0.0
+AppVersion=1.0.0
 AppPublisher=obichan117
 AppPublisherURL=https://github.com/obichan117/pywinhello
 DefaultDirName={localappdata}\pywinhello
@@ -21,8 +21,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Files]
 Source: "..\dist\pywinhello-monitor.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\pywinhello.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\firmware\build\pywinhello_firmware.uf2"; DestDir: "{app}\firmware"; Flags: ignoreversion
-; TODO: Add pico2 firmware when RP2350 build is ready
+Source: "..\firmware\build\*.uf2"; DestDir: "{app}\firmware"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\pywinhello"; Filename: "{app}\pywinhello.exe"

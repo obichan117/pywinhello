@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import logging
 import threading
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import customtkinter as ctk
 
@@ -196,21 +197,52 @@ class AdvancedSettings(ctk.CTkFrame):
         threading.Thread(target=_save, daemon=True).start()
 
     def _on_reset(self) -> None:
-        """Reset all values to defaults."""
-        dialog = ctk.CTkInputDialog(
-            text=t("settings.advanced.reset_confirm"),
-            title=t("common.warning"),
-        )
-        # CTkInputDialog doesn't have yes/no, use a simpler approach
-        # Just reset directly since the user clicked the button
-        for cfg_key, entry in self._entries.items():
-            entry.delete(0, "end")
-            entry.insert(0, str(_DEFAULTS[cfg_key]))
+        """Reset all values to defaults with confirmation dialog."""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(t("common.warning"))
+        dialog.geometry("350x150")
+        dialog.resizable(False, False)
+        dialog.grab_set()
 
-        self._status_label.configure(
-            text=t("settings.advanced.reset_success"), text_color="green"
-        )
-        self.after(2000, self._status_label.configure, {"text": ""})
+        ctk.CTkLabel(
+            dialog,
+            text=t("settings.advanced.reset_confirm"),
+            font=ctk.CTkFont(size=13),
+            justify="left",
+        ).pack(padx=20, pady=20)
+
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=20, pady=(0, 15))
+
+        ctk.CTkButton(
+            btn_frame,
+            text=t("common.cancel"),
+            width=80,
+            fg_color="transparent",
+            border_width=1,
+            text_color=("gray30", "gray70"),
+            border_color=("gray30", "gray70"),
+            command=dialog.destroy,
+        ).pack(side="left")
+
+        def _confirm() -> None:
+            dialog.destroy()
+            for cfg_key, entry in self._entries.items():
+                entry.delete(0, "end")
+                entry.insert(0, str(_DEFAULTS[cfg_key]))
+            self._status_label.configure(
+                text=t("settings.advanced.reset_success"), text_color="green"
+            )
+            self.after(2000, self._status_label.configure, {"text": ""})
+
+        ctk.CTkButton(
+            btn_frame,
+            text=t("common.yes"),
+            width=80,
+            fg_color="red",
+            hover_color="darkred",
+            command=_confirm,
+        ).pack(side="right")
 
     def get_values(self) -> dict[str, int | float]:
         """Return current timing values from the UI."""

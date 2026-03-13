@@ -139,13 +139,13 @@ def wait_for_dialog(timeout: float = 10.0, poll_interval: float = 0.5) -> bool:
     Returns:
         True if the dialog appeared within the timeout.
     """
-    start = time.time()
-    while time.time() - start < timeout:
+    start = time.monotonic()
+    while time.monotonic() - start < timeout:
         if is_visible():
-            logger.info("Windows Security dialog detected after %.1fs", time.time() - start)
+            logger.info("Windows Security dialog detected after %.1fs", time.monotonic() - start)
             return True
         time.sleep(poll_interval)
-    logger.warning("Windows Security dialog not found within %.1fs", timeout)
+    logger.warning("Windows Security dialog not found within %.0fs", timeout)
     return False
 
 
@@ -155,10 +155,10 @@ def wait_for_dismiss(timeout: float = 30.0, poll_interval: float = 0.5) -> bool:
     Returns:
         True if the dialog disappeared within the timeout.
     """
-    start = time.time()
-    while time.time() - start < timeout:
+    start = time.monotonic()
+    while time.monotonic() - start < timeout:
         if not is_visible():
-            logger.info("Windows Security dialog dismissed after %.1fs", time.time() - start)
+            logger.info("Windows Security dialog dismissed after %.1fs", time.monotonic() - start)
             return True
         time.sleep(poll_interval)
     logger.warning("Windows Security dialog still present after %.1fs", timeout)
