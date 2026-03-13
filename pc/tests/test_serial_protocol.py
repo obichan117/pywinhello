@@ -128,6 +128,26 @@ class TestParsePing:
         info = parse_ping(resp)
         assert info.device_type == "rp2040"
 
+    def test_firmware_comma_format_pico_w(self):
+        """Firmware sends OK:pico_w,1.0.0 — comma-separated board + version."""
+        resp = Response(raw="OK:pico_w,1.0.0", ok=True, data="pico_w,1.0.0")
+        info = parse_ping(resp)
+        assert info.protocol_version == 2
+        assert info.device_type == "pico_w"
+        assert info.firmware_version == "1.0.0"
+
+    def test_firmware_comma_format_pico_2_w(self):
+        resp = Response(raw="OK:pico_2_w,2.1.0", ok=True, data="pico_2_w,2.1.0")
+        info = parse_ping(resp)
+        assert info.device_type == "pico_2_w"
+        assert info.firmware_version == "2.1.0"
+
+    def test_firmware_comma_format_pico(self):
+        resp = Response(raw="OK:pico,1.0.0", ok=True, data="pico,1.0.0")
+        info = parse_ping(resp)
+        assert info.device_type == "pico"
+        assert info.firmware_version == "1.0.0"
+
 
 def _make_serial_mock(readline_value: bytes = b"OK\n") -> MagicMock:
     mock_ser = MagicMock()

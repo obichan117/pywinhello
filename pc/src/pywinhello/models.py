@@ -3,6 +3,29 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
+
+
+class BoardVariant(Enum):
+    """Pico board variants — determines which firmware binary to flash."""
+
+    PICO = "pico"
+    PICO_W = "pico_w"
+    PICO_2 = "pico_2"
+    PICO_2_W = "pico_2_w"
+
+
+# Adafruit VID used by all Raspberry Pi Pico boards
+PICO_VID = 0x239A
+
+# USB PID → board variant mapping
+BOARD_BY_PID: dict[int, BoardVariant] = {
+    0x80F4: BoardVariant.PICO,
+    0x8058: BoardVariant.PICO_W,
+    0x8120: BoardVariant.PICO_W,
+    0x8150: BoardVariant.PICO_2,
+    0x8160: BoardVariant.PICO_2_W,
+}
 
 
 @dataclass

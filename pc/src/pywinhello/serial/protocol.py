@@ -166,8 +166,10 @@ def parse_response(raw: str) -> Response:
 def parse_ping(response: Response) -> PingInfo:
     """Parse a PING response into PingInfo.
 
-    v1 firmware returns just "PONG" (no metadata).
-    v2 firmware returns "PONG:v2:rp2040:1.0.0".
+    Handles multiple firmware response formats:
+    - v1: ``PONG`` (no metadata)
+    - v2 documented: ``PONG:v2:rp2040:1.0.0`` (colon-separated)
+    - v2 actual firmware: ``OK:pico_w,1.0.0`` (comma-separated board + version)
 
     Args:
         response: The parsed response from a PING command.
@@ -182,9 +184,20 @@ def parse_ping(response: Response) -> PingInfo:
         # v1 firmware — just PONG with no metadata
         return PingInfo(protocol_version=1, device_type="unknown", firmware_version="0.0.0")
 
+    # Firmware format: "pico_w,1.0.0" (comma-separated, in OK:data)
+    if "," in response.data:
+        parts = response.data.split(",")
+        device_type = parts[0].strip()
+        firmware_version = parts[1].strip() if len(parts) >= 2 else "0.0.0"
+        return PingInfo(
+            protocol_version=2,
+            device_type=device_type,
+            firmware_version=firmware_version,
+        )
+
+    # PONG format: "v2:rp2040:1.0.0" (colon-separated with protocol prefix)
     parts = response.data.split(":")
     if len(parts) >= 3:
-        # v2 format: "v2:rp2040:1.0.0"
         try:
             proto = int(parts[0].lstrip("v"))
         except ValueError:
@@ -195,8 +208,9 @@ def parse_ping(response: Response) -> PingInfo:
             firmware_version=parts[2],
         )
 
-    # Partial v2 response
-    return PingInfo(protocol_version=2, device_type=parts[0] if parts else "unknown", firmware_version="0.0.0")
+    # Partial response — just a device type
+    device = parts[0] if parts else "unknown"
+    return PingInfo(protocol_version=2, device_type=device, firmware_version="0.0.0")
 
 
 class SerialProtocol:

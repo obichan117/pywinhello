@@ -14,19 +14,13 @@ from enum import Enum
 
 from serial.tools import list_ports
 
+from pywinhello.models import BOARD_BY_PID, PICO_VID
 from pywinhello.serial.protocol import PingInfo, SerialProtocol
 
 logger = logging.getLogger(__name__)
 
-# Raspberry Pi Pico USB identifiers (Adafruit VID)
-PICO_VID = 0x239A
-PICO_PIDS = {
-    0x8058,  # Pico W
-    0x8120,  # Pico W (alt)
-    0x80F4,  # Pico (non-W)
-    0x8150,  # Pico 2 (non-W)
-    0x8160,  # Pico 2 W
-}
+# Derived from models — kept as a set for fast lookup
+PICO_PIDS = set(BOARD_BY_PID.keys())
 
 
 def find_pico_port() -> str | None:
