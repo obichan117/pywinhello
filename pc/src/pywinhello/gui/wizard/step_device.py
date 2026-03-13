@@ -1,71 +1,26 @@
-"""Step 1/4: Device detection and firmware flashing."""
+"""Step 1/4: Device detection and firmware flashing.
+
+Uses the setup.provision() module for all detection and flashing logic.
+The wizard simply displays progress and results.
+"""
 
 from __future__ import annotations
 
 import logging
-import shutil
-import string
 import threading
-import time
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
 from pywinhello.gui.i18n import t
 from pywinhello.gui.wizard.base import WizardStep
+from pywinhello.setup import ProvisionResult, provision
+from pywinhello.setup.detect import DeviceState
 
 if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger(__name__)
-
-# BOOTSEL mode volume label
-_BOOTSEL_LABEL = "RPI-RP2"
-
-
-def _find_bootsel_drive() -> Path | None:
-    """Find a mounted drive with the RPI-RP2 volume label (BOOTSEL mode)."""
-    try:
-        import ctypes as _ctypes
-
-        for letter in string.ascii_uppercase:
-            drive = f"{letter}:\\"
-            if Path(drive).exists():
-                vol_buf = _ctypes.create_unicode_buffer(256)
-                result = _ctypes.windll.kernel32.GetVolumeInformationW(
-                    drive, vol_buf, 256, None, None, None, None, 0
-                )
-                if result and vol_buf.value == _BOOTSEL_LABEL:
-                    return Path(drive)
-    except Exception:
-        pass
-    return None
-
-
-def _find_pico_com() -> tuple[str | None, str | None, str | None]:
-    """Detect Pico on a COM port. Returns (port, device_type, firmware_version)."""
-    try:
-        from pywinhello.serial.device import PicoDevice
-
-        device = PicoDevice()
-        try:
-            info = device.connect()
-            port = info.port
-            device_type = info.ping_info.device_type
-            firmware_version = info.ping_info.firmware_version
-            device.disconnect()
-            return port, device_type, firmware_version
-        except ConnectionError:
-            return None, None, None
-        except Exception:
-            device.disconnect()
-            return None, None, None
-
-    except ImportError:
-        pass
-
-    return None, None, None
 
 
 class DeviceStep(WizardStep):
@@ -129,7 +84,7 @@ class DeviceStep(WizardStep):
         self._flash_btn = ctk.CTkButton(
             self._btn_frame,
             text=t("wizard.step1.btn_flash"),
-            command=self._on_flash,
+            command=self._on_provision,
         )
 
         self._detect_btn = ctk.CTkButton(
@@ -138,7 +93,7 @@ class DeviceStep(WizardStep):
             command=self._on_detect,
         )
 
-        # Instructions for BOOTSEL
+        # Instructions (for BOOTSEL re-flash)
         self._instructions_label = ctk.CTkLabel(
             self.frame,
             text="",
@@ -157,8 +112,8 @@ class DeviceStep(WizardStep):
     def on_enter(self) -> None:
         self._on_detect()
 
-    def _on_detect(self) -> None:
-        """Run device detection in a background thread."""
+    def _reset_ui(self) -> None:
+        """Reset all UI elements to detecting state."""
         self._status_label.configure(text=t("wizard.step1.detecting"))
         self._detail_label.configure(text="")
         self._info_frame.pack_forget()
@@ -166,42 +121,54 @@ class DeviceStep(WizardStep):
         self._detect_btn.pack_forget()
         self._instructions_label.configure(text="")
         self._icon_label.configure(text="")
+        self.wizard.nav_bar.set_next_enabled(False)
 
-        threading.Thread(target=self._detect_thread, daemon=True).start()
+    def _on_detect(self) -> None:
+        """Run provision() in a background thread."""
+        self._reset_ui()
+        threading.Thread(target=self._provision_thread, daemon=True).start()
 
-    def _detect_thread(self) -> None:
-        """Background detection."""
-        # Check for BOOTSEL drive
-        bootsel = _find_bootsel_drive()
-        if bootsel is not None:
-            self.frame.after(0, self._show_bootsel, str(bootsel))
-            return
+    def _on_provision(self) -> None:
+        """Same as detect — provision handles everything."""
+        self._on_detect()
 
-        # Check for COM port
-        port, dev_type, fw_ver = _find_pico_com()
-        if port is not None:
-            self.frame.after(0, self._show_com_found, port, dev_type, fw_ver)
-            return
+    def _update_progress(self, message: str, progress: float) -> None:
+        """Progress callback from provision() — runs on background thread."""
+        self.frame.after(0, self._status_label.configure, {"text": message})
 
-        # Not found
-        self.frame.after(0, self._show_not_found)
+    def _provision_thread(self) -> None:
+        """Run provision() and dispatch result to GUI."""
+        try:
+            result = provision(on_progress=self._update_progress)
+            self.frame.after(0, self._show_result, result)
+        except Exception as e:
+            logger.exception("Provision failed")
+            self.frame.after(
+                0,
+                self._show_error,
+                str(e),
+            )
 
-    def _show_bootsel(self, drive: str) -> None:
-        self._detected = False
-        self._icon_label.configure(text="USB")
-        self._status_label.configure(text=t("wizard.step1.bootsel_found"))
-        self._detail_label.configure(text=f"Drive: {drive}")
-        self._instructions_label.configure(text="")
-        self._flash_btn.pack(side="left", padx=5)
-        self._detect_btn.pack(side="left", padx=5)
+    def _show_result(self, result: ProvisionResult) -> None:
+        """Display provision result in the wizard."""
+        if result.success:
+            self._show_success(result)
+        elif result.state == DeviceState.NOT_FOUND:
+            self._show_not_found()
+        elif result.state in (
+            DeviceState.UNKNOWN_FIRMWARE,
+            DeviceState.RUNNING_PYWINHELLO,
+        ):
+            self._show_needs_bootsel(result)
+        else:
+            self._show_error(result.message)
 
-    def _show_com_found(
-        self, port: str, device_type: str | None, fw_version: str | None
-    ) -> None:
+    def _show_success(self, result: ProvisionResult) -> None:
+        """Pico is set up and ready."""
         self._detected = True
-        self._port = port
-        self._device_type = device_type or "Pico"
-        self._fw_version = fw_version or "unknown"
+        self._device_type = result.board.value if result.board else "Pico"
+        self._fw_version = result.firmware_version or "unknown"
+        self._port = None  # Will be re-detected by later steps
 
         self._icon_label.configure(text="OK")
         self._status_label.configure(text=t("wizard.step1.com_found"))
@@ -217,93 +184,40 @@ class DeviceStep(WizardStep):
 
         self._flash_btn.pack_forget()
         self._detect_btn.pack_forget()
+        self._instructions_label.configure(text="")
 
-        # Enable next
         self.wizard.nav_bar.set_next_enabled(True)
 
     def _show_not_found(self) -> None:
+        """No Pico detected at all."""
         self._detected = False
         self._icon_label.configure(text="?")
         self._status_label.configure(text=t("wizard.step1.not_found"))
         self._detail_label.configure(text=t("wizard.step1.not_found_hint"))
-        self._instructions_label.configure(text=t("wizard.step1.bootsel_instructions"))
+        self._instructions_label.configure(text="")
         self._detect_btn.pack(side="left", padx=5)
         self.wizard.nav_bar.set_next_enabled(False)
 
-    def _on_flash(self) -> None:
-        """Flash firmware to BOOTSEL drive in background."""
-        self._flash_btn.configure(state="disabled")
-        self._status_label.configure(text=t("wizard.step1.flashing"))
-        threading.Thread(target=self._flash_thread, daemon=True).start()
+    def _show_needs_bootsel(self, result: ProvisionResult) -> None:
+        """Automatic update failed — show BOOTSEL re-flash instructions."""
+        self._detected = False
+        self._icon_label.configure(text="!")
+        self._status_label.configure(text=t("wizard.step1.needs_bootsel"))
+        self._detail_label.configure(text=result.message)
+        self._instructions_label.configure(
+            text=t("wizard.step1.needs_bootsel_steps")
+        )
+        self._detect_btn.pack(side="left", padx=5)
+        self.wizard.nav_bar.set_next_enabled(False)
 
-    def _flash_thread(self) -> None:
-        """Copy .uf2 firmware to the BOOTSEL drive."""
-        try:
-            bootsel = _find_bootsel_drive()
-            if bootsel is None:
-                self.frame.after(
-                    0, self._status_label.configure, {"text": t("wizard.step1.flash_failed")}
-                )
-                return
-
-            # Look for bundled .uf2 firmware
-            fw_dir = Path(__file__).parent.parent.parent / "firmware"
-            uf2_files = list(fw_dir.glob("*.uf2")) if fw_dir.exists() else []
-
-            if not uf2_files:
-                # Also check package data
-                import importlib.resources as resources
-
-                try:
-                    pkg_path = resources.files("pywinhello") / "firmware"
-                    if pkg_path.is_dir():  # type: ignore[union-attr]
-                        uf2_files = [p for p in pkg_path.iterdir() if str(p).endswith(".uf2")]  # type: ignore[union-attr]
-                except Exception:
-                    pass
-
-            if not uf2_files:
-                self.frame.after(
-                    0,
-                    self._status_label.configure,
-                    {"text": t("wizard.step1.flash_failed")},
-                )
-                self.frame.after(
-                    0,
-                    self._detail_label.configure,
-                    {"text": "No .uf2 firmware file found"},
-                )
-                return
-
-            uf2_path = uf2_files[0]
-            dest = bootsel / uf2_path.name
-            shutil.copy2(str(uf2_path), str(dest))
-
-            self.frame.after(
-                0, self._status_label.configure, {"text": t("wizard.step1.waiting_reboot")}
-            )
-
-            # Wait for Pico to reboot and appear as COM port
-            for _ in range(30):
-                time.sleep(1)
-                port, dev_type, fw_ver = _find_pico_com()
-                if port is not None:
-                    self.frame.after(
-                        0, self._show_com_found, port, dev_type, fw_ver
-                    )
-                    return
-
-            self.frame.after(
-                0, self._status_label.configure, {"text": t("wizard.step1.flash_failed")}
-            )
-
-        except Exception as e:
-            logger.exception("Flash failed")
-            self.frame.after(
-                0, self._status_label.configure, {"text": t("wizard.step1.flash_failed")}
-            )
-            self.frame.after(
-                0, self._detail_label.configure, {"text": str(e)}
-            )
+    def _show_error(self, message: str) -> None:
+        """Generic error display."""
+        self._detected = False
+        self._icon_label.configure(text="!")
+        self._status_label.configure(text=t("wizard.step1.flash_failed"))
+        self._detail_label.configure(text=message)
+        self._detect_btn.pack(side="left", padx=5)
+        self.wizard.nav_bar.set_next_enabled(False)
 
     def can_proceed(self) -> bool:
         return self._detected

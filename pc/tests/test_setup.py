@@ -136,7 +136,25 @@ class TestFirmware:
         for variant in BoardVariant:
             result = get_firmware_path(variant, search_dir=tmp_path)
             assert result is not None
-            assert variant.value in result.name
+            assert result.name.endswith(".uf2")
+
+    def test_get_firmware_path_falls_back_to_sibling(self, tmp_path):
+        """PICO_W lookup finds pywinhello_pico.uf2 when _pico_w.uf2 is missing."""
+        fw = tmp_path / "pywinhello_pico.uf2"
+        fw.write_bytes(b"\x00")
+
+        result = get_firmware_path(BoardVariant.PICO_W, search_dir=tmp_path)
+        assert result is not None
+        assert result.name == "pywinhello_pico.uf2"
+
+    def test_get_firmware_path_prefers_exact_match(self, tmp_path):
+        """When both pico.uf2 and pico_w.uf2 exist, PICO_W returns _pico_w."""
+        (tmp_path / "pywinhello_pico.uf2").write_bytes(b"\x00")
+        (tmp_path / "pywinhello_pico_w.uf2").write_bytes(b"\x01")
+
+        result = get_firmware_path(BoardVariant.PICO_W, search_dir=tmp_path)
+        assert result is not None
+        assert result.name == "pywinhello_pico_w.uf2"
 
     def test_list_bundled_firmware_empty(self, tmp_path):
         # With no firmware files anywhere, should return empty

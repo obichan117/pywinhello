@@ -102,8 +102,21 @@ flowchart TD
 | Running pywinhello (current) | Reports "up to date" | None |
 | Running pywinhello (outdated) | OTA update over serial | None |
 | Running pywinhello (OTA fails) | REBOOT → BOOTSEL → flash UF2 | None |
-| Running other firmware | Try REBOOT, fall back to instructions | Hold BOOTSEL + replug |
+| Running old pywinhello (no REBOOT) | Try REBOOT (fails), show instructions | One-time BOOTSEL re-flash |
+| Running other firmware | Try REBOOT, fall back to instructions | One-time BOOTSEL re-flash |
 | Not detected | Prompt to plug in | Plug in Pico |
+
+!!! note "One-time BOOTSEL re-flash"
+    If your Pico is running old pywinhello firmware (before REBOOT support)
+    or third-party firmware, a one-time manual step is needed:
+
+    1. Unplug the Pico
+    2. Hold the **BOOTSEL** button (white button on the board)
+    3. While holding, plug the USB cable back in
+    4. Release the button — an **RPI-RP2** drive appears
+    5. Re-run the setup wizard — it flashes automatically
+
+    After this, all future updates are fully automated.
 
 ### What happens under the hood
 
