@@ -50,7 +50,17 @@ The monitor package runs as an invisible background process.
 
 ## Setup
 
-First-run firmware flashing for Pico in BOOTSEL mode.
+Automated firmware provisioning — handles detection, flashing, OTA updates, and verification.
+
+::: pywinhello.setup.provision
+
+::: pywinhello.setup.ProvisionResult
+
+::: pywinhello.setup.detect
+
+::: pywinhello.setup.DetectedDevice
+
+::: pywinhello.setup.DeviceState
 
 ::: pywinhello.setup.find_bootsel_drive
 

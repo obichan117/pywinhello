@@ -16,6 +16,7 @@
 #include "log.h"
 
 #include "pico/stdlib.h"
+#include "pico/bootrom.h"
 #include "tusb.h"
 
 #include <stdio.h>
@@ -87,6 +88,7 @@ static command_id_t parse_command(const char *cmd) {
     if (strcmp(cmd, "FLASH")      == 0) return CMD_FLASH;
     if (strcmp(cmd, "STATUS")     == 0) return CMD_STATUS;
     if (strcmp(cmd, "BOOT_OK")    == 0) return CMD_BOOT_OK;
+    if (strcmp(cmd, "REBOOT")     == 0) return CMD_REBOOT;
     return CMD_UNKNOWN;
 }
 
@@ -343,6 +345,16 @@ static void handle_boot_ok(void) {
     serial_respond("OK", NULL);
 }
 
+static void handle_reboot(void) {
+    serial_respond("OK", NULL);
+    /* Flush USB so host receives OK before we disappear */
+    tud_cdc_write_flush();
+    tud_task();
+    sleep_ms(100);
+    tud_task();
+    reset_usb_boot(0, 0);  /* Never returns — enters BOOTSEL mode */
+}
+
 /* ── Command dispatch ─────────────────────────────────────────────── */
 
 static void dispatch_command(char *line) {
@@ -374,6 +386,7 @@ static void dispatch_command(char *line) {
     case CMD_FLASH:      handle_flash(payload); break;
     case CMD_STATUS:     handle_status(); break;
     case CMD_BOOT_OK:    handle_boot_ok(); break;
+    case CMD_REBOOT:     handle_reboot(); break;
     default:
         serial_respond("ERR", "unknown_command");
         break;

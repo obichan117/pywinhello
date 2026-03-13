@@ -27,7 +27,9 @@ The installer places:
 
 The settings app opens automatically after install:
 
-1. **Device detection** — plug in Pico (BOOTSEL mode for first flash, or already flashed)
+1. **Device detection** — just plug in the Pico. The wizard handles everything:
+    - Brand new Pico? Firmware is flashed automatically (no button presses needed)
+    - Already has pywinhello? Checks for updates and applies them over serial
 2. **Typing test** — Notepad opens, Pico types test string, speed auto-calibrated
 3. **PIN registration** — enter Windows PIN twice, stored encrypted on Pico only
 4. **Schedule** — set wake time and days (default: weekdays 07:45)

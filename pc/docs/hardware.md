@@ -59,17 +59,75 @@ Pico flash (2MB)
 - No `GET_PIN` serial command exists — the PIN never leaves the Pico
 - `SETUP_PIN` sends cleartext over local USB serial (acceptable: physical access required)
 
-## First-time setup
+## Setup Flow
 
-The setup wizard in the settings app handles this automatically, but here's what happens:
+The setup wizard automates firmware provisioning for every Pico state — no manual button presses needed for the standard case.
 
-1. User holds BOOTSEL button and plugs in Pico → `RPI-RP2` drive appears
-2. Installer copies `.uf2` firmware to the drive → Pico reboots
-3. Pico re-enumerates as HID keyboard + CDC serial
-4. Settings app sends `PING` → receives device type and firmware version
-5. User enters PIN → `SETUP_PIN` encrypts and stores on Pico flash
+### Provisioning decision tree
 
-Subsequent firmware updates happen over serial (OTA) — no BOOTSEL needed.
+```mermaid
+flowchart TD
+    A[Plug in Pico] --> B{Detect USB}
+    B -->|RPI-RP2 drive| C[BOOTSEL mode]
+    B -->|Serial port| D{PING}
+    B -->|Nothing| E["Show: plug in Pico"]
+
+    C --> C1[Read INFO_UF2.TXT]
+    C1 --> C2[Identify board variant]
+    C2 --> C3[Copy .uf2 to drive]
+    C3 --> C4[Wait for reboot]
+    C4 --> C5[Verify via PING]
+
+    D -->|pywinhello responds| F{Version check}
+    D -->|Timeout / error| G[Unknown firmware]
+
+    F -->|Up to date| H["Done ✓"]
+    F -->|Outdated| I[OTA update via FLASH]
+    I -->|Success| H
+    I -->|Fail| J[Send REBOOT]
+
+    J --> K[Wait for BOOTSEL drive]
+    K --> C2
+
+    G --> L[Try REBOOT anyway]
+    L -->|BOOTSEL appears| C2
+    L -->|No response| M["Show: hold BOOTSEL"]
+```
+
+### Pico state matrix
+
+| Pico State | What setup.exe does | User action needed |
+|------------|--------------------|--------------------|
+| Brand new (blank flash) | Auto-enters BOOTSEL → flash UF2 → verify | Just plug in |
+| Running pywinhello (current) | Reports "up to date" | None |
+| Running pywinhello (outdated) | OTA update over serial | None |
+| Running pywinhello (OTA fails) | REBOOT → BOOTSEL → flash UF2 | None |
+| Running other firmware | Try REBOOT, fall back to instructions | Hold BOOTSEL + replug |
+| Not detected | Prompt to plug in | Plug in Pico |
+
+### What happens under the hood
+
+1. **Blank Pico** — RP2040/RP2350 ROM bootloader runs when flash is empty, exposing an `RPI-RP2` mass storage drive automatically. The wizard detects this drive, reads `INFO_UF2.TXT` to identify the board variant, copies the correct `.uf2` firmware, and waits for reboot.
+
+2. **OTA updates** — the firmware has a dual-partition (A/B) flash layout with a serial `FLASH` command. The PC streams the new firmware binary, the Pico writes it to the staging partition, verifies the SHA-256 hash, swaps partitions, and reboots.
+
+3. **REBOOT recovery** — the firmware supports a `REBOOT` serial command that calls `reset_usb_boot()` to re-enter BOOTSEL mode. This enables fully automated recovery and re-flashing without physical button presses.
+
+### Serial protocol
+
+| Command | Response | Description |
+|---------|----------|-------------|
+| `PING` | `OK:pico_w,1.0.0` | Device type + firmware version |
+| `GET_CONFIG` | `OK:{json}` | Read full config |
+| `SET_CONFIG:{json}` | `OK` | Write config |
+| `SETUP_PIN:{pin}` | `OK` | Store encrypted PIN |
+| `CLEAR` | `OK` | Wipe PIN + config + log |
+| `UNLOCK` | `OK` | Type stored PIN + Enter |
+| `HELLO` | `OK` | Type stored PIN (no Enter) |
+| `GET_LOG` | `OK:{base64}` | Read event log |
+| `FLASH:{size}` | `READY` | Begin OTA (then stream binary) |
+| `REBOOT` | `OK` | Enter BOOTSEL mode |
+| `STATUS` | `OK:{json}` | Device status |
 
 ## Troubleshooting
 

@@ -82,6 +82,7 @@ PC → Pico:
   HELLO                   → OK (type PIN for Windows Hello dialog)
   GET_LOG                 → OK:<base64 log>
   FLASH:<size>            → READY (then binary stream)
+  REBOOT                  → OK (enter BOOTSEL mode for UF2 flashing)
   STATUS                  → OK:pin=yes,schedule=07:45,wifi=ok
 ```
 

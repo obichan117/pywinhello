@@ -28,6 +28,7 @@ typedef enum {
     CMD_FLASH,       /* Enter bootloader flash mode */
     CMD_STATUS,
     CMD_BOOT_OK,     /* Confirm new firmware is working */
+    CMD_REBOOT,      /* Reboot into BOOTSEL for UF2 flashing */
 } command_id_t;
 
 /* ── Public API ───────────────────────────────────────────────────── */

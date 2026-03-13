@@ -327,3 +327,6 @@ class TestCommandEnum:
 
     def test_press_command_exists(self):
         assert Command.PRESS.value == "PRESS"
+
+    def test_reboot_command_exists(self):
+        assert Command.REBOOT.value == "REBOOT"

@@ -19,6 +19,7 @@ Commands:
     PRESS:{key}   -> OK  (press named key)
     COMBO:{k+k}   -> OK  (key combination)
     DELAY:{ms}    -> OK  (set keystroke delay)
+    REBOOT        -> OK  (enter BOOTSEL mode for UF2 flashing)
 """
 
 from __future__ import annotations
@@ -52,6 +53,9 @@ class Command(StrEnum):
 
     # HID typing commands (used by monitor for ESCAPE fallback)
     PRESS = "PRESS"
+
+    # Setup / provisioning
+    REBOOT = "REBOOT"
 
 
 @dataclass(frozen=True)
@@ -334,6 +338,24 @@ class SerialProtocol:
         """Read device status (uptime, PIN configured, etc.)."""
         resp = self.send_checked(Command.STATUS)
         return resp.json  # type: ignore[no-any-return]
+
+    def reboot_to_bootsel(self) -> None:
+        """Send REBOOT command to enter BOOTSEL mode for UF2 flashing.
+
+        The Pico reboots immediately after acknowledging. The serial port
+        will disappear — callers should expect ``OSError`` on subsequent
+        operations and wait for the BOOTSEL drive to appear.
+        """
+        try:
+            self.send(Command.REBOOT)
+        except (TimeoutError, OSError):
+            # Expected: device reboots and serial port vanishes
+            pass
+        finally:
+            try:
+                self.close()
+            except OSError:
+                pass
 
     def flash_begin(self, size: int) -> Response:
         """Initiate firmware flash. Returns READY response.
