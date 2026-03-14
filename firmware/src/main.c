@@ -37,6 +37,12 @@
 #include "pico/unique_id.h"
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "hardware/structs/usb.h"
+#include "hardware/regs/usb.h"
+
+#ifdef PYWINHELLO_HAS_CYW43
+#include "pico/cyw43_arch.h"
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -217,18 +223,36 @@ int main(void) {
     /* Basic Pico SDK init (clocks, GPIO) */
     stdio_init_all();
 
-    /*
-     * board_init() from tinyusb_board — REQUIRED before tusb_init().
-     * Applies the RP2040-E5 USB device enumeration erratum fix,
-     * configures VBUS detect override, and on Pico W initializes
-     * CYW43 (needed for VBUS sense routing through WiFi chip).
-     */
     board_init();
+
+    /*
+     * On Pico W, VBUS sense routes through the CYW43 WiFi chip
+     * (WL_GPIO2 → RP2040 can't read GPIO 24 directly).  Initialize
+     * CYW43 BEFORE tusb_init() so the VBUS signal path is active.
+     */
+#ifdef PYWINHELLO_HAS_CYW43
+    cyw43_arch_init();
+#endif
 
     /* Initialize TinyUSB device stack */
     tusb_init();
 
-    /* Detect WiFi hardware (CYW43 already initialized by board_init on W) */
+    /*
+     * Force VBUS detect override.  tusb_init() → dcd_init() clears
+     * all USB hw registers (memset), so this MUST come after.
+     *
+     * On Pico W the VBUS pin goes through CYW43; even with CYW43
+     * initialized above, the RP2040 USB controller may not see GPIO 24
+     * as VBUS.  The override tells the USB PHY "VBUS is present" and
+     * is harmless on non-W boards where GPIO 24 reads VBUS directly.
+     */
+    usb_hw->pwr = USB_USB_PWR_VBUS_DETECT_BITS
+                | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
+
+    /* Re-assert D+ pull-up now that VBUS is recognized */
+    usb_hw->sie_ctrl |= USB_SIE_CTRL_PULLUP_EN_BITS;
+
+    /* Detect WiFi hardware (cyw43_arch_init is idempotent) */
     bool has_wifi = wifi_detect();
 
     /* Give USB time to enumerate before heavy init */
