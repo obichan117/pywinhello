@@ -3,6 +3,10 @@
  *
  * Composite device: CDC (serial) + HID (keyboard)
  * Required by TinyUSB — must be on the include path.
+ *
+ * NOTE: Do NOT define CFG_TUSB_MCU, CFG_TUSB_OS, CFG_TUD_ENABLED,
+ * or CFG_TUD_MAX_SPEED here. The Pico SDK sets these automatically
+ * via the tinyusb_device / tinyusb_board CMake targets.
  */
 
 #ifndef TUSB_CONFIG_H
@@ -12,32 +16,18 @@
 extern "C" {
 #endif
 
-/* ── Board / MCU ─────────────────────────────────────────────────── */
+/* ── Endpoint 0 max packet size ──────────────────────────────────── */
 
-#ifndef CFG_TUSB_MCU
-#ifdef PICO_RP2350
-#define CFG_TUSB_MCU  OPT_MCU_RP2040  /* TinyUSB uses same MCU ID */
-#else
-#define CFG_TUSB_MCU  OPT_MCU_RP2040
-#endif
-#endif
-
-#define CFG_TUSB_OS   OPT_OS_PICO
-
-/* ── USB device configuration ────────────────────────────────────── */
-
-#define CFG_TUD_ENABLED       1
-#define CFG_TUD_MAX_SPEED     OPT_MODE_FULL_SPEED
-
-/* Endpoint 0 max packet size */
+#ifndef CFG_TUD_ENDPOINT0_SIZE
 #define CFG_TUD_ENDPOINT0_SIZE  64
+#endif
 
 /* ── Class enable ────────────────────────────────────────────────── */
 
-#define CFG_TUD_CDC   1
-#define CFG_TUD_HID   1
-#define CFG_TUD_MSC   0
-#define CFG_TUD_MIDI  0
+#define CFG_TUD_CDC    1
+#define CFG_TUD_HID    1
+#define CFG_TUD_MSC    0
+#define CFG_TUD_MIDI   0
 #define CFG_TUD_VENDOR 0
 
 /* ── CDC FIFO sizes ──────────────────────────────────────────────── */

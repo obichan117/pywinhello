@@ -12,6 +12,9 @@
 #define MBEDTLS_HAVE_ASM
 #define MBEDTLS_NO_PLATFORM_ENTROPY
 
+/* Use Pico SDK's hardware RNG (ROSC) as entropy source */
+#define MBEDTLS_ENTROPY_HARDWARE_ALT
+
 /* Crypto primitives we actually use */
 #define MBEDTLS_AES_C
 #define MBEDTLS_SHA256_C

@@ -191,6 +191,21 @@ static void update_uptime(void) {
     }
 }
 
+/* ── Yield to USB during init ─────────────────────────────────────── */
+
+/*
+ * USB enumeration requires tud_task() to process host descriptor
+ * requests. Call this between init steps so enumeration can complete
+ * even if initialization takes a while (e.g., first-boot LittleFS
+ * format erases 64 flash sectors with interrupts disabled).
+ */
+static void usb_yield(void) {
+    for (int i = 0; i < 10; i++) {
+        tud_task();
+        sleep_ms(1);
+    }
+}
+
 /* ── Main ─────────────────────────────────────────────────────────── */
 
 int main(void) {
@@ -208,14 +223,18 @@ int main(void) {
     /* Initialize TinyUSB device stack */
     tusb_init();
 
+    /* Give USB time to enumerate before heavy init */
+    usb_yield();
+
     /* Crypto must come before storage (for PIN encryption) */
     crypto_init();
+    usb_yield();
 
-    /* Mount filesystem */
+    /* Mount filesystem (first boot: formats flash — slow) */
     if (!storage_init()) {
-        /* Fatal: cannot access flash storage.
-         * Continue with defaults — serial will still work. */
+        /* Cannot access flash storage — continue with defaults */
     }
+    usb_yield();
 
     /* Load config from flash */
     storage_load_config();
@@ -225,6 +244,8 @@ int main(void) {
 
     /* Check if PIN is stored */
     g_state.pin_stored = storage_has_pin();
+
+    usb_yield();
 
     /* Update device string in config */
     switch (g_state.device) {
@@ -238,6 +259,7 @@ int main(void) {
     /* WiFi: connect and sync NTP (Pico W only) */
     if (has_wifi) {
         wifi_connect();
+        usb_yield();
         if (wifi_is_connected()) {
             wifi_ntp_sync();
         }
