@@ -222,13 +222,9 @@ int main(void) {
     /* Basic Pico SDK init (clocks, GPIO) */
     stdio_init_all();
 
-    /* TinyUSB board support — sets up LED, UART if available */
-    board_init();
-
     /* Initialize TinyUSB device stack.
-     * dcd_init() inside tusb_init() already forces VBUS detect override
-     * (USB_PWR_VBUS_DETECT + OVERRIDE_EN), so Pico W VBUS routing
-     * through CYW43 is not needed for USB to enumerate. */
+     * dcd_init() inside tusb_init() handles VBUS detect override,
+     * USB PHY muxing, and D+ pull-up. No board_init() needed. */
     tusb_init();
 
     /*
