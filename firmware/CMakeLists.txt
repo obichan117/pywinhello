@@ -124,3 +124,27 @@ target_compile_options(pywinhello_firmware PRIVATE
 # ── Generate UF2 output ──────────────────────────────────────────────
 
 pico_add_extra_outputs(pywinhello_firmware)
+
+# ── Minimal USB test firmware ───────────────────────────────────────
+#
+# Bare-bones CDC serial using SDK's pico_stdio_usb (no custom TinyUSB).
+# Used to verify USB hardware works before debugging custom descriptors.
+
+add_executable(test_usb_minimal
+    src/test_usb_minimal.c
+)
+
+target_link_libraries(test_usb_minimal
+    pico_stdlib
+)
+
+pico_enable_stdio_usb(test_usb_minimal 1)
+pico_enable_stdio_uart(test_usb_minimal 0)
+
+if(_WIFI_ENABLED)
+    target_link_libraries(test_usb_minimal
+        pico_cyw43_arch_none
+    )
+endif()
+
+pico_add_extra_outputs(test_usb_minimal)
