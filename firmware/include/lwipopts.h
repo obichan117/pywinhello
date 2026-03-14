@@ -37,6 +37,9 @@
 /* Timeouts */
 #define DHCP_DOES_ARP_CHECK         0
 
+/* Network interface features */
+#define LWIP_NETIF_HOSTNAME         1
+
 /* Debugging - disabled for release */
 #define LWIP_DEBUG                  0
 
