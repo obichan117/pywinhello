@@ -201,6 +201,10 @@ int main(void) {
     /* Basic Pico SDK init (clocks, GPIO) */
     stdio_init_all();
 
+    /* Auto-detect WiFi hardware — must happen before tusb_init()
+     * because on Pico W, CYW43 controls VBUS detect GPIO */
+    bool has_wifi = wifi_detect();
+
     /* Initialize TinyUSB device stack */
     tusb_init();
 
@@ -221,9 +225,6 @@ int main(void) {
 
     /* Check if PIN is stored */
     g_state.pin_stored = storage_has_pin();
-
-    /* Auto-detect WiFi hardware */
-    bool has_wifi = wifi_detect();
 
     /* Update device string in config */
     switch (g_state.device) {
