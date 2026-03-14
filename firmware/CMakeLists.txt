@@ -158,11 +158,10 @@ add_executable(test_usb_custom_cdc
     src/test_usb_custom_cdc.c
 )
 
-# Use the same include dir (same tusb_config.h with HID enabled).
-# The test's inline descriptors only describe CDC — tests our
-# TinyUSB config + linking without the composite HID descriptors.
-target_include_directories(test_usb_custom_cdc PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
+# Use a separate include dir with CDC-only tusb_config.h (no HID).
+# Must come BEFORE the main include dir so this tusb_config.h wins.
+target_include_directories(test_usb_custom_cdc BEFORE PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include_test_cdc
 )
 
 target_link_libraries(test_usb_custom_cdc
