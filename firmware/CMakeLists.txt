@@ -10,6 +10,23 @@ set(CMAKE_CXX_STANDARD 17)
 
 pico_sdk_init()
 
+# ── LittleFS (flash filesystem) ─────────────────────────────────────
+
+include(FetchContent)
+FetchContent_Declare(
+    littlefs
+    GIT_REPOSITORY https://github.com/littlefs-project/littlefs.git
+    GIT_TAG        v2.9.3
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(littlefs)
+
+add_library(littlefs_lib STATIC
+    ${littlefs_SOURCE_DIR}/lfs.c
+    ${littlefs_SOURCE_DIR}/lfs_util.c
+)
+target_include_directories(littlefs_lib PUBLIC ${littlefs_SOURCE_DIR})
+
 # ── Source files ──────────────────────────────────────────────────────
 
 add_executable(pywinhello_firmware
@@ -37,6 +54,7 @@ target_link_libraries(pywinhello_firmware
     hardware_flash
     hardware_sync
     pico_mbedtls
+    littlefs_lib
 )
 
 # ── TinyUSB configuration ────────────────────────────────────────────
