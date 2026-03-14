@@ -223,6 +223,16 @@ int main(void) {
     /* Initialize TinyUSB device stack */
     tusb_init();
 
+    /*
+     * DIAGNOSTIC: Skip all heavy init, go straight to main loop.
+     * This tests whether USB CDC enumeration works on Pico W.
+     * Remove this #if 0 block once USB is confirmed working.
+     */
+#if 1  /* Set to 0 to enable full init */
+    (void)has_wifi;
+    goto main_loop;
+#endif
+
     /* Give USB time to enumerate before heavy init */
     usb_yield();
 
@@ -285,6 +295,7 @@ int main(void) {
 
     /* ── Main loop ────────────────────────────────────────────────── */
 
+main_loop:
     while (true) {
         /* TinyUSB device task (must be called frequently) */
         tud_task();
