@@ -239,14 +239,6 @@ static void json_get_str(const char *json, const char *key,
     out[i] = '\0';
 }
 
-static bool json_get_bool(const char *json, const char *key, bool def) {
-    const char *p = json_find_key(json, key);
-    if (!p) return def;
-    if (strncmp(p, "true", 4) == 0) return true;
-    if (strncmp(p, "false", 5) == 0) return false;
-    return def;
-}
-
 static void json_parse_schedule_time(const char *json, config_t *cfg) {
     /* Find "time":"HH:MM" inside schedule object */
     const char *sched = strstr(json, "\"schedule\"");

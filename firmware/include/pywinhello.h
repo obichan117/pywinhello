@@ -138,8 +138,8 @@ extern app_state_t g_state;
 #define FLASH_TOTAL_SIZE       (2 * 1024 * 1024)
 #define FLASH_FS_SIZE          (256 * 1024)
 #define FLASH_FS_OFFSET        (FLASH_TOTAL_SIZE - FLASH_FS_SIZE)
-#define FLASH_SECTOR_SIZE      4096
-#define FLASH_PAGE_SIZE        256
+/* FLASH_SECTOR_SIZE and FLASH_PAGE_SIZE come from hardware/flash.h */
+#include "hardware/flash.h"
 
 /* Dual-partition layout for OTA */
 #define FLASH_PART_A_OFFSET    0x00000000
