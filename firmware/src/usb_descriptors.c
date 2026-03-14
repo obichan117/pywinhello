@@ -12,6 +12,7 @@
 
 #include "tusb.h"
 #include "pywinhello.h"
+#include "pico/unique_id.h"
 
 /* ── Device Descriptor ────────────────────────────────────────────── */
 
