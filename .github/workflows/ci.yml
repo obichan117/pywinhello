@@ -52,15 +52,15 @@ jobs:
       - name: Build firmware (all variants)
         working-directory: firmware
         run: |
+          mkdir -p build
           for board in pico pico_w pico2 pico2_w; do
             echo "=== Building for $board ==="
             mkdir -p "build_${board}" && cd "build_${board}"
             cmake .. -DPICO_BOARD="$board"
             make -j$(nproc)
+            cp pywinhello_firmware.uf2 ../build/pywinhello_${board}.uf2
             cd ..
           done
-          mkdir -p build
-          cp build_*/*.uf2 build/
 
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
