@@ -59,9 +59,11 @@ jobs:
             cmake .. -DPICO_BOARD="$board"
             make -j$(nproc)
             cp pywinhello_firmware.uf2 ../build/pywinhello_${board}.uf2
-            if [ -f test_usb_minimal.uf2 ]; then
-              cp test_usb_minimal.uf2 ../build/test_usb_minimal_${board}.uf2
-            fi
+            for f in test_usb_minimal test_usb_custom_cdc; do
+              if [ -f "${f}.uf2" ]; then
+                cp "${f}.uf2" "../build/${f}_${board}.uf2"
+              fi
+            done
             cd ..
           done
 

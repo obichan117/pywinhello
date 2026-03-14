@@ -148,3 +148,36 @@ if(_WIFI_ENABLED)
 endif()
 
 pico_add_extra_outputs(test_usb_minimal)
+
+# ── Custom CDC-only test firmware ───────────────────────────────────
+#
+# Uses our own tusb_config.h + descriptors (CDC only, no HID).
+# Tests whether our custom TinyUSB configuration works at all.
+
+add_executable(test_usb_custom_cdc
+    src/test_usb_custom_cdc.c
+)
+
+# Use the same include dir (same tusb_config.h with HID enabled).
+# The test's inline descriptors only describe CDC — tests our
+# TinyUSB config + linking without the composite HID descriptors.
+target_include_directories(test_usb_custom_cdc PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(test_usb_custom_cdc
+    pico_stdlib
+    tinyusb_device
+    tinyusb_board
+)
+
+pico_enable_stdio_usb(test_usb_custom_cdc 0)
+pico_enable_stdio_uart(test_usb_custom_cdc 0)
+
+if(_WIFI_ENABLED)
+    target_link_libraries(test_usb_custom_cdc
+        pico_cyw43_arch_none
+    )
+endif()
+
+pico_add_extra_outputs(test_usb_custom_cdc)
