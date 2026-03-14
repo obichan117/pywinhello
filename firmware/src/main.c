@@ -35,10 +35,9 @@
 
 #include "pico/stdlib.h"
 #include "pico/unique_id.h"
+#include "pico/bootrom.h"
 #include "bsp/board_api.h"
 #include "tusb.h"
-#include "hardware/structs/usb.h"
-#include "hardware/regs/usb.h"
 
 #ifdef PYWINHELLO_HAS_CYW43
 #include "pico/cyw43_arch.h"
@@ -223,39 +222,32 @@ int main(void) {
     /* Basic Pico SDK init (clocks, GPIO) */
     stdio_init_all();
 
+    /* TinyUSB board support — sets up LED, UART if available */
     board_init();
 
-    /*
-     * On Pico W, VBUS sense routes through the CYW43 WiFi chip
-     * (WL_GPIO2 → RP2040 can't read GPIO 24 directly).  Initialize
-     * CYW43 BEFORE tusb_init() so the VBUS signal path is active.
-     */
-#ifdef PYWINHELLO_HAS_CYW43
-    cyw43_arch_init();
-#endif
-
-    /* Initialize TinyUSB device stack */
+    /* Initialize TinyUSB device stack.
+     * dcd_init() inside tusb_init() already forces VBUS detect override
+     * (USB_PWR_VBUS_DETECT + OVERRIDE_EN), so Pico W VBUS routing
+     * through CYW43 is not needed for USB to enumerate. */
     tusb_init();
 
     /*
-     * Force VBUS detect override.  tusb_init() → dcd_init() clears
-     * all USB hw registers (memset), so this MUST come after.
-     *
-     * On Pico W the VBUS pin goes through CYW43; even with CYW43
-     * initialized above, the RP2040 USB controller may not see GPIO 24
-     * as VBUS.  The override tells the USB PHY "VBUS is present" and
-     * is harmless on non-W boards where GPIO 24 reads VBUS directly.
+     * Wait for USB enumeration with auto-BOOTSEL fallback.
+     * If the host doesn't mount us within 8 seconds, reboot into
+     * BOOTSEL so the user can reflash without holding the button.
      */
-    usb_hw->pwr = USB_USB_PWR_VBUS_DETECT_BITS
-                | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
+    for (int i = 0; i < 800 && !tud_mounted(); i++) {
+        tud_task();
+        sleep_ms(10);
+    }
+    if (!tud_mounted()) {
+        reset_usb_boot(0, 0);
+        /* Never reached */
+    }
 
-    /* Re-assert D+ pull-up now that VBUS is recognized */
-    usb_hw->sie_ctrl |= USB_SIE_CTRL_PULLUP_EN_BITS;
+    /* ── USB is live — proceed with subsystem init ────────────── */
 
-    /* Detect WiFi hardware (cyw43_arch_init is idempotent) */
     bool has_wifi = wifi_detect();
-
-    /* Give USB time to enumerate before heavy init */
     usb_yield();
 
     /* Crypto must come before storage (for PIN encryption) */
