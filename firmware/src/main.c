@@ -36,6 +36,7 @@
 #include "pico/stdlib.h"
 #include "pico/unique_id.h"
 #include "tusb.h"
+#include "hardware/structs/usb.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -216,22 +217,22 @@ int main(void) {
     /* Basic Pico SDK init (clocks, GPIO) */
     stdio_init_all();
 
+    /* Auto-detect WiFi hardware — must happen before tusb_init()
+     * because on Pico W, CYW43 controls VBUS detect GPIO */
+    bool has_wifi = wifi_detect();
+
     /*
-     * DIAGNOSTIC BUILD: Test USB enumeration on Pico W.
-     *
-     * Test 1: Skip wifi_detect entirely — does tusb_init work alone?
-     *         On Pico W, VBUS detect goes through CYW43 GPIO,
-     *         so this may fail. But it tests if tusb_init crashes.
-     *
-     * Test 2 (if Test 1 fails): Add cyw43_arch_init before tusb_init.
+     * Force VBUS detect override. On Pico W the VBUS sense pin is
+     * routed through CYW43, so the USB controller can't see it
+     * directly. This override tells the hardware "VBUS is present"
+     * unconditionally. Safe on all Pico variants — on non-W boards
+     * VBUS is already detected, so the override is harmless.
      */
-    bool has_wifi = false;
+    usb_hw->pwr = USB_USB_PWR_VBUS_DETECT_BITS |
+                  USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
 
     /* Initialize TinyUSB device stack */
     tusb_init();
-
-    (void)has_wifi;
-    goto main_loop;
 
     /* Give USB time to enumerate before heavy init */
     usb_yield();
@@ -295,7 +296,6 @@ int main(void) {
 
     /* ── Main loop ────────────────────────────────────────────────── */
 
-main_loop:
     while (true) {
         /* TinyUSB device task (must be called frequently) */
         tud_task();
