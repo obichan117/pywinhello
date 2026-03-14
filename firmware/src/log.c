@@ -6,6 +6,7 @@
  */
 
 #include "log.h"
+#include "storage.h"
 
 #include "pico/stdlib.h"
 

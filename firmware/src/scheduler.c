@@ -9,6 +9,7 @@
 #include "scheduler.h"
 #include "hid.h"
 #include "log.h"
+#include "storage.h"
 #include "wifi.h"
 #include "serial_proto.h"
 
@@ -185,5 +186,4 @@ void scheduler_task(void) {
     }
 }
 
-/* Forward declaration — defined in storage.c, needed for blind PIN type */
-extern bool storage_load_pin(char *buf, size_t buflen);
+/* storage_load_pin() is available via storage.h */
