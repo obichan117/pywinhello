@@ -171,7 +171,11 @@ extern app_state_t g_state;
 
 /* ── Utility macros ───────────────────────────────────────────────── */
 
+#ifndef MIN
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
+#ifndef MAX
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
 
 #endif /* PYWINHELLO_H */
