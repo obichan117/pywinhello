@@ -61,23 +61,30 @@ static void ntp_recv_cb(void *arg, struct udp_pcb *pcb, struct pbuf *p,
 /* ── Public API (WiFi-enabled build) ──────────────────────────────── */
 
 bool wifi_detect(void) {
-    int err = cyw43_arch_init();
-    if (err == 0) {
-        _wifi_present = true;
+    /*
+     * CYW43 may already be initialized by board_init().
+     * cyw43_arch_init() returns 0 on success, or a negative error
+     * if the hardware isn't present. On double-init it may return
+     * 0 or PICO_ERROR_GENERIC — either way, check if the driver
+     * is actually functional by testing cyw43_is_initialized().
+     */
+    if (!_wifi_present) {
+        int err = cyw43_arch_init();
+        if (err == 0) {
+            _wifi_present = true;
+        }
+    }
 
-        /* Determine device type */
+    if (_wifi_present) {
         #if defined(PICO_RP2350)
         g_state.device = DEVICE_PICO_2_W;
         #else
         g_state.device = DEVICE_PICO_W;
         #endif
-
         return true;
     }
 
     /* CYW43 init failed: not a W board */
-    _wifi_present = false;
-
     #if defined(PICO_RP2350)
     g_state.device = DEVICE_PICO_2;
     #else
