@@ -8,6 +8,11 @@
 #ifndef TUSB_CONFIG_H
 #define TUSB_CONFIG_H
 
+/* Device stack must be enabled for descriptor macros */
+#ifndef CFG_TUD_ENABLED
+#define CFG_TUD_ENABLED  1
+#endif
+
 /* Class enable — CDC only */
 #define CFG_TUD_CDC    1
 #define CFG_TUD_HID    0
