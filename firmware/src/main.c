@@ -216,22 +216,22 @@ int main(void) {
     /* Basic Pico SDK init (clocks, GPIO) */
     stdio_init_all();
 
-    /* Auto-detect WiFi hardware — must happen before tusb_init()
-     * because on Pico W, CYW43 controls VBUS detect GPIO */
-    bool has_wifi = wifi_detect();
+    /*
+     * DIAGNOSTIC BUILD: Test USB enumeration on Pico W.
+     *
+     * Test 1: Skip wifi_detect entirely — does tusb_init work alone?
+     *         On Pico W, VBUS detect goes through CYW43 GPIO,
+     *         so this may fail. But it tests if tusb_init crashes.
+     *
+     * Test 2 (if Test 1 fails): Add cyw43_arch_init before tusb_init.
+     */
+    bool has_wifi = false;
 
     /* Initialize TinyUSB device stack */
     tusb_init();
 
-    /*
-     * DIAGNOSTIC: Skip all heavy init, go straight to main loop.
-     * This tests whether USB CDC enumeration works on Pico W.
-     * Remove this #if 0 block once USB is confirmed working.
-     */
-#if 1  /* Set to 0 to enable full init */
     (void)has_wifi;
     goto main_loop;
-#endif
 
     /* Give USB time to enumerate before heavy init */
     usb_yield();
