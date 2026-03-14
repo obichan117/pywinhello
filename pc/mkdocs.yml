@@ -25,6 +25,7 @@ nav:
   - Home: index.md
   - Quick Start: quickstart.md
   - Hardware Setup: hardware.md
+  - Update Workflow: updates.md
   - API Reference: api.md
 
 plugins:

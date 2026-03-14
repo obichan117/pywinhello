@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from pywinhello.serial.protocol import Command, SerialProtocol
@@ -149,7 +150,7 @@ class NotepadTest:
 
     def run(
         self,
-        on_step: None | (callable) = None,
+        on_step: Callable[[str, str], None] | None = None,
     ) -> NotepadTestResult:
         """Execute the full test sequence.
 

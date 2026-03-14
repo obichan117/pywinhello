@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ class LockUnlockTest:
 
     def run(
         self,
-        on_status: None | (callable) = None,
+        on_status: Callable[[str], None] | None = None,
     ) -> LockUnlockResult:
         """Execute the lock/unlock test.
 

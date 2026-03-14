@@ -124,11 +124,14 @@ def detect_default_locale() -> str:
     """
     # Try to read from Pico config (serial module may not exist yet)
     try:
-        from pywinhello.serial.device import PicoDevice
+        from pywinhello.serial.device import PicoDevice, find_pico_port
 
-        dev = PicoDevice.find()
-        if dev is not None:
-            cfg = dev.get_config()
+        port = find_pico_port()
+        if port is not None:
+            dev = PicoDevice(port=port)
+            dev.connect()
+            cfg = dev.protocol.get_config()
+            dev.disconnect()
             if cfg and "locale" in cfg:
                 locale = cfg["locale"]
                 if locale in _SUPPORTED_LOCALES:

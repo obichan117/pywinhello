@@ -51,8 +51,11 @@ class Command(StrEnum):
     FLASH = "FLASH"
     STATUS = "STATUS"
 
-    # HID typing commands (used by monitor for ESCAPE fallback)
+    # HID typing commands
+    TYPE = "TYPE"
     PRESS = "PRESS"
+    COMBO = "COMBO"
+    DELAY = "DELAY"
 
     # Setup / provisioning
     REBOOT = "REBOOT"

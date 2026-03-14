@@ -43,5 +43,29 @@ pywinhello-settings = "pywinhello.gui.app:main"
 [project.urls]
 Repository = "https://github.com/obichan117/pywinhello"
 
+[tool.mypy]
+mypy_path = "src"
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = [
+    "customtkinter",
+    "customtkinter.*",
+    "wmi",
+    "win32api",
+    "win32con",
+    "win32gui",
+    "win32process",
+    "win32event",
+    "win32ts",
+    "pywintypes",
+    "requests",
+    "serial",
+    "serial.*",
+    "pythoncom",
+]
+ignore_missing_imports = true
+follow_untyped_imports = false
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/pywinhello"]
