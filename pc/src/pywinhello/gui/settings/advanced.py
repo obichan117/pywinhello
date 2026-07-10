@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import threading
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import customtkinter as ctk
 
+from pywinhello.core import write_config
 from pywinhello.gui.i18n import t
+
+if TYPE_CHECKING:
+    from pywinhello.gui.app import _PicoConnection
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +36,11 @@ class AdvancedSettings(ctk.CTkFrame):
         self,
         parent: ctk.CTkFrame,
         config: dict[str, Any],
-        send_command: Callable[[str], str | None],
+        pico: _PicoConnection,
     ) -> None:
         super().__init__(parent, fg_color="transparent")
         self._config = config
-        self._send = send_command
+        self._pico = pico
         self._entries: dict[str, ctk.CTkEntry] = {}
 
         frame = ctk.CTkFrame(self)
@@ -168,23 +170,12 @@ class AdvancedSettings(ctk.CTkFrame):
 
         def _save() -> None:
             try:
-                payload = json.dumps(values)
-                resp = self._send(f"SET_CONFIG:{payload}")
-                if resp and resp.startswith("OK"):
-                    self.after(
-                        0,
-                        self._status_label.configure,
-                        {"text": t("settings.btn_saved"), "text_color": "green"},
-                    )
-                else:
-                    self.after(
-                        0,
-                        self._status_label.configure,
-                        {
-                            "text": t("settings.save_failed", error=resp or ""),
-                            "text_color": "red",
-                        },
-                    )
+                write_config(self._pico.protocol, values)
+                self.after(
+                    0,
+                    self._status_label.configure,
+                    {"text": t("settings.btn_saved"), "text_color": "green"},
+                )
             except Exception as e:
                 self.after(
                     0,

@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
+from pywinhello.core import save_schedule
 from pywinhello.gui.constants import DAY_KEYS, DEFAULT_DAYS
 from pywinhello.gui.i18n import t
 from pywinhello.gui.wizard.base import WizardStep
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +150,9 @@ class ScheduleStep(WizardStep):
 
     def _save_schedule(self) -> None:
         """Send schedule to Pico synchronously (called from can_proceed)."""
-        schedule = self._get_schedule_data()
+        hour = int(self._hour_var.get())
+        minute = int(self._minute_var.get())
+        days = [k for k, v in self._day_vars.items() if v.get()]
         self._status_label.configure(
             text=t("wizard.step4.saving"), text_color="gray50"
         )
@@ -172,7 +171,7 @@ class ScheduleStep(WizardStep):
 
             with SerialProtocol(port=port) as proto:
                 try:
-                    proto.set_config({"schedule": schedule})
+                    save_schedule(proto, hour, minute, days)
                     self._saved = True
                     self._status_label.configure(
                         text=t("wizard.step4.save_success"), text_color="green"

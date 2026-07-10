@@ -102,7 +102,17 @@ jobs:
       - name: Build settings executable
         working-directory: pc
         run: |
-          uv run pyinstaller --onefile --noconsole --name pywinhello --icon ../installer/assets/pywinhello.ico src/pywinhello/gui/app.py
+          uv run pyinstaller --onefile --noconsole --name pywinhello-settings --icon ../installer/assets/pywinhello.ico src/pywinhello/gui/app.py
+
+      - name: Build CLI executable
+        working-directory: pc
+        run: |
+          uv run pyinstaller --onefile --name pywinhello --icon ../installer/assets/pywinhello.ico src/pywinhello/__main__.py
+
+      - name: Build tray executable
+        working-directory: pc
+        run: |
+          uv run pyinstaller --onefile --noconsole --name pywinhello-tray --icon ../installer/assets/pywinhello.ico src/pywinhello/tray/app.py
 
       - name: Download firmware artifacts
         uses: actions/download-artifact@v4
@@ -115,6 +125,8 @@ jobs:
           mkdir -p dist
           cp pc/dist/pywinhello-monitor.exe dist/
           cp pc/dist/pywinhello.exe dist/
+          cp pc/dist/pywinhello-settings.exe dist/
+          cp pc/dist/pywinhello-tray.exe dist/
 
       - name: Build installer
         run: |

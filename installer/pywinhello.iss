@@ -21,14 +21,16 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Files]
 Source: "..\dist\pywinhello-monitor.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\pywinhello.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\pywinhello-settings.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\pywinhello-tray.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\firmware\build\*.uf2"; DestDir: "{app}\firmware"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\pywinhello"; Filename: "{app}\pywinhello.exe"
+Name: "{group}\pywinhello"; Filename: "{app}\pywinhello-settings.exe"
 Name: "{group}\Uninstall pywinhello"; Filename: "{uninstallexe}"
 
 [Run]
-Filename: "{app}\pywinhello.exe"; Description: "pywinhelloを起動"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\pywinhello-settings.exe"; Description: "pywinhelloを起動"; Flags: postinstall nowait skipifsilent
 
 [Registry]
 ; Add monitor to Windows Startup

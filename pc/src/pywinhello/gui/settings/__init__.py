@@ -6,20 +6,23 @@ modifying and saving back via SET_CONFIG.
 
 from __future__ import annotations
 
-import json
 import logging
 import threading
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import customtkinter as ctk
 
+from pywinhello.core import read_config
 from pywinhello.gui.i18n import t
 from pywinhello.gui.settings.advanced import AdvancedSettings
 from pywinhello.gui.settings.apps import AppsSettings
 from pywinhello.gui.settings.basic import BasicSettings
 from pywinhello.gui.settings.log_view import LogView
 from pywinhello.gui.settings.version_info import VersionInfo
+
+if TYPE_CHECKING:
+    from pywinhello.gui.app import _PicoConnection
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +36,12 @@ class SettingsPanel(ctk.CTkFrame):
     def __init__(
         self,
         parent: ctk.CTkFrame,
-        send_command: Callable[[str], str | None],
+        pico: _PicoConnection,
         on_run_wizard: Callable[[], None] | None = None,
         on_test: Callable[[], None] | None = None,
     ) -> None:
         super().__init__(parent, fg_color="transparent")
-        self._send = send_command
+        self._pico = pico
         self._on_run_wizard = on_run_wizard
         self._on_test = on_test
         self._config: dict[str, Any] = {}
@@ -71,13 +74,11 @@ class SettingsPanel(ctk.CTkFrame):
         """Fetch config from Pico in background."""
 
         def _fetch() -> None:
-            config: dict[str, Any] = {}
             try:
-                resp = self._send("GET_CONFIG")
-                if resp and resp.startswith("OK:"):
-                    config = json.loads(resp[3:])
+                config = read_config(self._pico.protocol)
             except Exception as e:
                 logger.debug("Failed to load config: %s", e)
+                config = {}
 
             self.after(0, self._build_sections, config)
 
@@ -108,23 +109,23 @@ class SettingsPanel(ctk.CTkFrame):
             )
 
         # Basic settings (PIN + schedule)
-        self._basic = BasicSettings(self._scroll, config, self._send)
+        self._basic = BasicSettings(self._scroll, config, self._pico)
         self._basic.pack(fill="x", pady=5)
 
         # Automation targets (apps)
-        self._apps = AppsSettings(self._scroll, config, self._send)
+        self._apps = AppsSettings(self._scroll, config, self._pico)
         self._apps.pack(fill="x", pady=5)
 
         # Advanced settings (timing)
-        self._advanced = AdvancedSettings(self._scroll, config, self._send)
+        self._advanced = AdvancedSettings(self._scroll, config, self._pico)
         self._advanced.pack(fill="x", pady=5)
 
         # Recent events log
-        self._log = LogView(self._scroll, self._send)
+        self._log = LogView(self._scroll, self._pico)
         self._log.pack(fill="x", pady=5)
 
         # Version info
-        self._version = VersionInfo(self._scroll, config, self._send)
+        self._version = VersionInfo(self._scroll, config, self._pico)
         self._version.pack(fill="x", pady=5)
 
         # Bottom action buttons
@@ -227,25 +228,15 @@ class SettingsPanel(ctk.CTkFrame):
 
         def _clear() -> None:
             try:
-                resp = self._send("CLEAR")
-                if resp and resp.startswith("OK"):
-                    self.after(
-                        0,
-                        self._action_status.configure,
-                        {"text": t("settings.actions.clear_success"), "text_color": "green"},
-                    )
-                    # Trigger wizard mode
-                    if self._on_run_wizard:
-                        self.after(1000, self._on_run_wizard)
-                else:
-                    self.after(
-                        0,
-                        self._action_status.configure,
-                        {
-                            "text": t("settings.actions.clear_failed", error=resp or ""),
-                            "text_color": "red",
-                        },
-                    )
+                self._pico.protocol.clear()
+                self.after(
+                    0,
+                    self._action_status.configure,
+                    {"text": t("settings.actions.clear_success"), "text_color": "green"},
+                )
+                # Trigger wizard mode
+                if self._on_run_wizard:
+                    self.after(1000, self._on_run_wizard)
             except Exception as e:
                 self.after(
                     0,

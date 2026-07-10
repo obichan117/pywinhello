@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import customtkinter as ctk
 
+from pywinhello.core import apply_firmware_update, check_for_update
 from pywinhello.gui.i18n import t
+
+if TYPE_CHECKING:
+    from pywinhello.gui.app import _PicoConnection
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +32,11 @@ class VersionInfo(ctk.CTkFrame):
         self,
         parent: ctk.CTkFrame,
         config: dict[str, Any],
-        send_command: Callable[[str], str | None],
+        pico: _PicoConnection,
     ) -> None:
         super().__init__(parent, fg_color="transparent")
         self._config = config
-        self._send = send_command
+        self._pico = pico
         self._fw_version = config.get("firmware_version", "unknown")
 
         frame = ctk.CTkFrame(self)
@@ -152,72 +155,51 @@ class VersionInfo(ctk.CTkFrame):
 
     def _check_thread(self) -> None:
         """Fetch latest version info from GitHub."""
-        try:
-            from datetime import datetime
+        from datetime import datetime
 
-            import requests
+        result = check_for_update()
+        now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-            resp = requests.get(
-                "https://api.github.com/repos/obichan117/pywinhello/releases/latest",
-                timeout=10,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                latest_tag = data.get("tag_name", "").lstrip("v")
-                now = datetime.now().strftime("%Y-%m-%d %H:%M")
+        def _update_ui() -> None:
+            self._last_checked.configure(text=now)
 
-                def _update_ui() -> None:
-                    self._last_checked.configure(text=now)
-
-                    # Compare software version
-                    if latest_tag and latest_tag != _SOFTWARE_VERSION.replace("-dev", ""):
-                        self._sw_status.configure(
-                            text=t("settings.version.update_available"),
-                            text_color="orange",
-                        )
-                    else:
-                        self._sw_status.configure(
-                            text=t("settings.version.latest"),
-                            text_color="green",
-                        )
-
-                    # Check firmware assets
-                    assets = data.get("assets", [])
-                    has_uf2 = any(a["name"].endswith(".uf2") for a in assets)
-                    if has_uf2:
-                        self._fw_status.configure(
-                            text=t("settings.version.update_available"),
-                            text_color="orange",
-                        )
-                        self._update_btn.configure(state="normal")
-                    else:
-                        self._fw_status.configure(
-                            text=t("settings.version.latest"),
-                            text_color="green",
-                        )
-
-                    self._update_status.configure(
-                        text=t("settings.version.up_to_date"), text_color="green"
-                    )
-                    self._check_btn.configure(state="normal")
-
-                self.after(0, _update_ui)
-            else:
-                self.after(
-                    0,
-                    self._update_status.configure,
-                    {"text": t("settings.version.check_failed"), "text_color": "red"},
+            if result.error:
+                logger.debug("Update check failed: %s", result.error)
+                self._update_status.configure(
+                    text=t("settings.version.check_failed"), text_color="red"
                 )
-                self.after(0, self._check_btn.configure, {"state": "normal"})
+                self._check_btn.configure(state="normal")
+                return
 
-        except Exception as e:
-            logger.debug("Update check failed: %s", e)
-            self.after(
-                0,
-                self._update_status.configure,
-                {"text": t("settings.version.check_failed"), "text_color": "red"},
+            if result.has_software_update:
+                self._sw_status.configure(
+                    text=t("settings.version.update_available"),
+                    text_color="orange",
+                )
+            else:
+                self._sw_status.configure(
+                    text=t("settings.version.latest"),
+                    text_color="green",
+                )
+
+            if result.has_firmware_update:
+                self._fw_status.configure(
+                    text=t("settings.version.update_available"),
+                    text_color="orange",
+                )
+                self._update_btn.configure(state="normal")
+            else:
+                self._fw_status.configure(
+                    text=t("settings.version.latest"),
+                    text_color="green",
+                )
+
+            self._update_status.configure(
+                text=t("settings.version.up_to_date"), text_color="green"
             )
-            self.after(0, self._check_btn.configure, {"state": "normal"})
+            self._check_btn.configure(state="normal")
+
+        self.after(0, _update_ui)
 
     def _on_update_firmware(self) -> None:
         """Trigger firmware update via serial FLASH command."""
@@ -228,8 +210,8 @@ class VersionInfo(ctk.CTkFrame):
 
         def _update() -> None:
             try:
-                resp = self._send("FLASH")
-                if resp and resp.startswith("OK"):
+                success = apply_firmware_update(self._pico.protocol)
+                if success:
                     self.after(
                         0,
                         self._update_status.configure,
@@ -240,7 +222,7 @@ class VersionInfo(ctk.CTkFrame):
                         0,
                         self._update_status.configure,
                         {
-                            "text": t("settings.version.update_failed", error=resp or ""),
+                            "text": t("settings.version.update_failed", error=""),
                             "text_color": "red",
                         },
                     )

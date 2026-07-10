@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import threading
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import customtkinter as ctk
 
+from pywinhello.core import write_config
 from pywinhello.gui.i18n import t
+
+if TYPE_CHECKING:
+    from pywinhello.gui.app import _PicoConnection
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +35,11 @@ class AppsSettings(ctk.CTkFrame):
         self,
         parent: ctk.CTkFrame,
         config: dict[str, Any],
-        send_command: Callable[[str], str | None],
+        pico: _PicoConnection,
     ) -> None:
         super().__init__(parent, fg_color="transparent")
         self._config = config
-        self._send = send_command
+        self._pico = pico
 
         frame = ctk.CTkFrame(self)
         frame.pack(fill="x", pady=5)
@@ -173,22 +175,18 @@ class AppsSettings(ctk.CTkFrame):
 
         def _save() -> None:
             try:
-                payload = json.dumps(data)
-                resp = self._send(f"SET_CONFIG:{payload}")
-                if resp and resp.startswith("OK"):
-                    self.after(
-                        0,
-                        self._save_status.configure,
-                        {"text": t("settings.btn_saved"), "text_color": "green"},
-                    )
-                else:
-                    self.after(
-                        0,
-                        self._save_status.configure,
-                        {"text": t("settings.save_failed", error=""), "text_color": "red"},
-                    )
-            except Exception:
-                pass
+                write_config(self._pico.protocol, data)
+                self.after(
+                    0,
+                    self._save_status.configure,
+                    {"text": t("settings.btn_saved"), "text_color": "green"},
+                )
+            except Exception as e:
+                self.after(
+                    0,
+                    self._save_status.configure,
+                    {"text": t("settings.save_failed", error=str(e)), "text_color": "red"},
+                )
 
             # Clear status after 2s
             self.after(2000, self._save_status.configure, {"text": ""})

@@ -91,6 +91,27 @@ A: スタートメニューから「pywinhello」を開くと、スケジュー�
 **Q: アンインストールしたい時は？**
 A: Windowsの設定 → アプリ → pywinhello → アンインストール
 
+## CLIを使う（上級者向け）
+
+GUI（セットアップウィザード・設定パネル・システムトレイ）は、コマンドラインツール `pywinhello` と同じコアロジックを薄くラップしたものです。自動化やスクリプトからは直接CLIを使えます。
+
+```
+pywinhello setup                     # 初回セットアップ（ファームウェア書き込み→PIN登録→スケジュール設定）
+pywinhello status [--json]           # 現在の状態を表示
+pywinhello doctor                    # 問題を診断（ファームウェア/PIN/スケジュール/接続）
+pywinhello config get [<key>]        # 設定を読み取る（例: schedule.time）
+pywinhello config set <key>=<value>  # 設定を書き込む（例: schedule.time=08:00）
+pywinhello pin set                   # PINを登録（対話的に入力、確認あり）
+pywinhello test lock                 # ロック→自動アンロックのテスト
+pywinhello test type                 # メモ帳への自動入力テスト
+pywinhello update check              # ソフトウェア/ファームウェアの更新を確認
+pywinhello serve                     # バックグラウンド監視サービスをフォアグラウンドで起動
+```
+
+**設定はPicoデバイス本体にのみ保存されます。** パソコン上には設定ファイルを一切保存しません — 読み書きはすべてシリアル経由でPicoに対して行われます。
+
+**PINをコマンドライン引数として渡すことはできません。** `pywinhello pin set` は常に対話的にPINの入力を求めます（画面には表示されず、確認入力あり）。シェル履歴やプロセス一覧にPINが残らないようにするためです。
+
 ---
 
 <a name="english"></a>
@@ -123,6 +144,27 @@ The Pico runs C firmware that presents as a dual USB device: HID keyboard (types
 1. **Buy a Pico** — [Raspberry Pi Pico W](https://www.raspberrypi.com/products/raspberry-pi-pico/) (~$6)
 2. **Download** — [Latest release](https://github.com/obichan117/pywinhello/releases/latest) → run `pywinhello_setup.exe`
 3. **Follow the wizard** — connect Pico, test, enter PIN, set schedule
+
+### Using the CLI
+
+The GUI (setup wizard, settings panel, system tray icon) is a thin wrapper over the same core logic as the `pywinhello` command-line tool. Use the CLI directly for automation or scripting.
+
+```
+pywinhello setup                     # first-time setup: flash firmware, register PIN, set schedule
+pywinhello status [--json]           # show current status
+pywinhello doctor                    # diagnose problems (firmware/PIN/schedule/connection)
+pywinhello config get [<key>]        # read config (e.g. schedule.time)
+pywinhello config set <key>=<value>  # write config (e.g. schedule.time=08:00)
+pywinhello pin set                   # register a PIN (interactive, hidden, confirmed)
+pywinhello test lock                 # test lock screen -> auto unlock
+pywinhello test type                 # test auto-typing into Notepad
+pywinhello update check              # check for software/firmware updates
+pywinhello serve                     # run the background monitor service in the foreground
+```
+
+**Config lives on the device** — pywinhello never writes a config file to the PC; every read/write goes over serial to the Pico.
+
+**The PIN is never a CLI flag.** `pywinhello pin set` always prompts interactively (hidden input, confirmed) so it never appears in shell history or a process listing.
 
 ### Developer Guide
 

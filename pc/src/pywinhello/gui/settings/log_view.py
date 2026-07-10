@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import threading
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import customtkinter as ctk
 
 from pywinhello.gui.i18n import t
+
+if TYPE_CHECKING:
+    from pywinhello.gui.app import _PicoConnection
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +67,10 @@ class LogView(ctk.CTkFrame):
     def __init__(
         self,
         parent: ctk.CTkFrame,
-        send_command: Callable[[str], str | None],
+        pico: _PicoConnection,
     ) -> None:
         super().__init__(parent, fg_color="transparent")
-        self._send = send_command
+        self._pico = pico
 
         frame = ctk.CTkFrame(self)
         frame.pack(fill="x", pady=5)
@@ -115,12 +116,8 @@ class LogView(ctk.CTkFrame):
         def _fetch() -> None:
             entries: list[str] = []
             try:
-                resp = self._send("GET_LOG")
-                if resp and resp.startswith("OK:"):
-                    data = json.loads(resp[3:])
-                    if isinstance(data, list):
-                        for event in data[-20:]:
-                            entries.append(_format_event(event))
+                data = self._pico.protocol.get_log()
+                entries = [_format_event(event) for event in data[-20:]]
             except Exception as e:
                 logger.debug("Failed to fetch log: %s", e)
 

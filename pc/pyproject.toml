@@ -22,6 +22,10 @@ classifiers = [
 dependencies = [
     "pyserial>=3.5",
     "customtkinter>=5.2",
+    "typer>=0.12",
+    "rich>=13.0",
+    "pystray>=0.19",
+    "pillow>=10.0",
     "wmi>=1.5; sys_platform == 'win32'",
     "pywin32>=306; sys_platform == 'win32'",
 ]
@@ -35,10 +39,11 @@ dev = [
 ]
 
 [project.scripts]
-pywinhello = "pywinhello.__main__:main"
+pywinhello = "pywinhello.cli:app"
 
 [project.gui-scripts]
 pywinhello-settings = "pywinhello.gui.app:main"
+pywinhello-tray = "pywinhello.tray.app:main"
 
 [project.urls]
 Repository = "https://github.com/obichan117/pywinhello"
