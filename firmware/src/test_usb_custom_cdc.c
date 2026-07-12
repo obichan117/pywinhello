@@ -4,14 +4,17 @@
  * Step 2 diagnostic: uses our own tusb_config.h and USB descriptors
  * but with CDC only (no HID). Tests if our TinyUSB configuration works.
  *
+ * Follows the official pico-examples/usb/device pattern:
+ *   board_init() → tud_init(BOARD_TUD_RHPORT) → main loop with tud_task()
+ *
  * If COM port appears: CDC config is fine, issue is adding HID.
  * If no COM port: issue is in tusb_config.h or CDC descriptor setup.
  */
 
-#include "pico/stdlib.h"
-#include "pico/bootrom.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 
+#include "pico/bootrom.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -103,8 +106,9 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
 /* ── Main ───────────────────────────────────────────────────────── */
 
 int main(void) {
-    stdio_init_all();
-    tusb_init();
+    /* Follow the official TinyUSB example pattern exactly */
+    board_init();
+    tud_init(BOARD_TUD_RHPORT);
 
     /* Wait for USB mount with auto-BOOTSEL fallback */
     for (int i = 0; i < 800 && !tud_mounted(); i++) {
@@ -129,7 +133,7 @@ int main(void) {
 
         /* Periodic heartbeat */
         static uint32_t last = 0;
-        uint32_t now = to_ms_since_boot(get_absolute_time());
+        uint32_t now = board_millis();
         if (now - last > 2000) {
             last = now;
             if (tud_cdc_connected()) {

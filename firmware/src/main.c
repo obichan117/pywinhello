@@ -219,13 +219,13 @@ int main(void) {
     memset(&g_state, 0, sizeof(g_state));
     g_state.device = DEVICE_UNKNOWN;
 
-    /* Basic Pico SDK init (clocks, GPIO) */
-    stdio_init_all();
+    /* Board-level init (clocks, GPIO) — matches TinyUSB BSP pattern */
+    board_init();
 
     /* Initialize TinyUSB device stack.
-     * dcd_init() inside tusb_init() handles VBUS detect override,
-     * USB PHY muxing, and D+ pull-up. No board_init() needed. */
-    tusb_init();
+     * dcd_init() handles VBUS detect override, USB PHY muxing,
+     * and D+ pull-up internally. */
+    tud_init(BOARD_TUD_RHPORT);
 
     /*
      * Wait for USB enumeration with auto-BOOTSEL fallback.

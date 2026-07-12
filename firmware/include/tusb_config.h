@@ -4,8 +4,8 @@
  * Composite device: CDC (serial) + HID (keyboard)
  * Required by TinyUSB — must be on the include path.
  *
- * Uses #ifndef guards for MCU/OS/speed so the Pico SDK's values
- * take precedence when provided via compile definitions.
+ * Follows the official pico-examples/usb/device pattern.
+ * CFG_TUSB_MCU is provided by the SDK as a compiler definition.
  */
 
 #ifndef TUSB_CONFIG_H
@@ -15,31 +15,47 @@
 extern "C" {
 #endif
 
-/* ── Board / MCU (fallbacks — SDK may override via compile defs) ── */
+/* ── Board ─────────────────────────────────────────────────────── */
 
-#ifndef CFG_TUSB_MCU
-#define CFG_TUSB_MCU  OPT_MCU_RP2040
+#ifndef BOARD_TUD_RHPORT
+#define BOARD_TUD_RHPORT      0
 #endif
+
+#ifndef BOARD_TUD_MAX_SPEED
+#define BOARD_TUD_MAX_SPEED   OPT_MODE_DEFAULT_SPEED
+#endif
+
+/* ── Common ────────────────────────────────────────────────────── */
+
+/* CFG_TUSB_MCU is set by the SDK's CMake targets — do not define here.
+ * Handles both RP2040 and RP2350 automatically. */
 
 #ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS   OPT_OS_PICO
+#define CFG_TUSB_OS           OPT_OS_NONE
 #endif
 
-/* ── USB device configuration ────────────────────────────────────── */
-
-#ifndef CFG_TUD_ENABLED
-#define CFG_TUD_ENABLED  1
+#ifndef CFG_TUSB_DEBUG
+#define CFG_TUSB_DEBUG        0
 #endif
 
-#ifndef CFG_TUD_MAX_SPEED
-#define CFG_TUD_MAX_SPEED  OPT_MODE_FULL_SPEED
+#define CFG_TUD_ENABLED       1
+#define CFG_TUD_MAX_SPEED     BOARD_TUD_MAX_SPEED
+
+#ifndef CFG_TUSB_MEM_SECTION
+#define CFG_TUSB_MEM_SECTION
 #endif
+
+#ifndef CFG_TUSB_MEM_ALIGN
+#define CFG_TUSB_MEM_ALIGN    __attribute__((aligned(4)))
+#endif
+
+/* ── Device ────────────────────────────────────────────────────── */
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
 #define CFG_TUD_ENDPOINT0_SIZE  64
 #endif
 
-/* ── Class enable ────────────────────────────────────────────────── */
+/* ── Classes ───────────────────────────────────────────────────── */
 
 #define CFG_TUD_CDC    1
 #define CFG_TUD_HID    1
