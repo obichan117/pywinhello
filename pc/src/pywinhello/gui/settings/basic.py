@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import threading
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import customtkinter as ctk
 
+from pywinhello.core import register_pin, save_schedule
 from pywinhello.gui.constants import DAY_KEYS, validate_pin
 from pywinhello.gui.i18n import t
 
 if TYPE_CHECKING:
-    pass
+    from pywinhello.gui.app import _PicoConnection
 
 logger = logging.getLogger(__name__)
 
@@ -23,18 +22,18 @@ class BasicSettings(ctk.CTkFrame):
     """PIN status + change button, schedule time/day picker with save.
 
     Reads current values from ``config`` dict and writes back to Pico
-    via the ``send_command`` callback.
+    via the ``pico`` connection.
     """
 
     def __init__(
         self,
         parent: ctk.CTkFrame,
         config: dict[str, Any],
-        send_command: Callable[[str], str | None],
+        pico: _PicoConnection,
     ) -> None:
         super().__init__(parent, fg_color="transparent")
         self._config = config
-        self._send = send_command
+        self._pico = pico
 
         # --- Section: PIN ---
         self._build_pin_section()
@@ -175,7 +174,7 @@ class BasicSettings(ctk.CTkFrame):
 
     def _on_change_pin(self) -> None:
         """Open a PIN change dialog."""
-        dialog = _PinChangeDialog(self, self._send)
+        dialog = _PinChangeDialog(self, self._pico)
         dialog.grab_set()
         self.wait_window(dialog)
 
@@ -189,30 +188,18 @@ class BasicSettings(ctk.CTkFrame):
         self._save_btn.configure(state="disabled")
         self._save_status.configure(text=t("settings.btn_saving"), text_color="gray50")
 
-        schedule = {
-            "time": f"{self._hour_var.get()}:{self._minute_var.get()}",
-            "days": [k for k, v in self._day_vars.items() if v.get()],
-        }
+        hour = int(self._hour_var.get())
+        minute = int(self._minute_var.get())
+        days = [k for k, v in self._day_vars.items() if v.get()]
 
         def _save() -> None:
             try:
-                payload = json.dumps({"schedule": schedule})
-                resp = self._send(f"SET_CONFIG:{payload}")
-                if resp and resp.startswith("OK"):
-                    self.after(
-                        0,
-                        self._save_status.configure,
-                        {"text": t("settings.btn_saved"), "text_color": "green"},
-                    )
-                else:
-                    self.after(
-                        0,
-                        self._save_status.configure,
-                        {
-                            "text": t("settings.save_failed", error=resp or "no response"),
-                            "text_color": "red",
-                        },
-                    )
+                save_schedule(self._pico.protocol, hour, minute, days)
+                self.after(
+                    0,
+                    self._save_status.configure,
+                    {"text": t("settings.btn_saved"), "text_color": "green"},
+                )
             except Exception as e:
                 self.after(
                     0,
@@ -235,12 +222,12 @@ class BasicSettings(ctk.CTkFrame):
 class _PinChangeDialog(ctk.CTkToplevel):
     """Modal dialog for changing the PIN."""
 
-    def __init__(self, parent: ctk.CTkFrame, send_command: Callable[[str], str | None]) -> None:
+    def __init__(self, parent: ctk.CTkFrame, pico: _PicoConnection) -> None:
         super().__init__(parent)
         self.title(t("settings.basic.change_pin_title"))
         self.geometry("350x280")
         self.resizable(False, False)
-        self._send = send_command
+        self._pico = pico
         self.success = False
 
         # New PIN
@@ -290,14 +277,9 @@ class _PinChangeDialog(ctk.CTkToplevel):
             return
 
         try:
-            resp = self._send(f"SETUP_PIN:{pin}")
-            if resp and resp.startswith("OK"):
-                self.success = True
-                self.destroy()
-            else:
-                self._error_label.configure(
-                    text=t("settings.basic.pin_change_failed", error=resp or "no response")
-                )
+            register_pin(self._pico.protocol, pin)
+            self.success = True
+            self.destroy()
         except Exception as e:
             self._error_label.configure(
                 text=t("settings.basic.pin_change_failed", error=str(e))

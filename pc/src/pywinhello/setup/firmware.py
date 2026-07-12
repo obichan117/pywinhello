@@ -19,19 +19,22 @@ from pywinhello.models import BoardVariant
 logger = logging.getLogger(__name__)
 
 
-def get_firmware_path(board: BoardVariant, search_dir: Path | None = None) -> Path | None:
-    """Find the UF2 firmware file for a specific board variant.
+def _same_chip_variants(board: BoardVariant) -> list[BoardVariant]:
+    """Return board variants that share the same chip (and firmware binary).
 
-    Args:
-        board: Target board variant.
-        search_dir: Explicit directory to search first. If ``None``,
-            falls through to package data and dev fallback.
-
-    Returns:
-        Path to the .uf2 file, or ``None`` if not found.
+    The requested board is always first (exact match preferred). Remaining
+    siblings follow as fallbacks — BOOTSEL mode can't distinguish W from
+    non-W, and the firmware auto-detects WiFi at runtime.
     """
-    filename = f"pywinhello_{board.value}.uf2"
+    rp2040 = [BoardVariant.PICO, BoardVariant.PICO_W]
+    rp2350 = [BoardVariant.PICO_2, BoardVariant.PICO_2_W]
+    family = rp2040 if board in rp2040 else rp2350
+    # Put exact match first
+    return [board] + [v for v in family if v != board]
 
+
+def _search_firmware(filename: str, search_dir: Path | None) -> Path | None:
+    """Search for a firmware file across all known locations."""
     # 1. Explicit directory
     if search_dir is not None:
         candidate = search_dir / filename
@@ -39,13 +42,24 @@ def get_firmware_path(board: BoardVariant, search_dir: Path | None = None) -> Pa
             logger.info("Found firmware: %s", candidate)
             return candidate
 
+    # 1b. Local firmware build output (dev): <repo>/firmware/build/. Preferred over
+    # the committed bundle so a fresh `make` in firmware/ is used immediately and a
+    # stale committed .uf2 can never silently win during development.
+    try:
+        build_dir = Path(__file__).parents[4] / "firmware" / "build"
+        candidate = build_dir / filename
+        if candidate.exists():
+            logger.info("Found firmware in local build output: %s", candidate)
+            return candidate
+    except IndexError:
+        pass
+
     # 2. Package data
     try:
         import importlib.resources as resources
 
         data_dir = resources.files("pywinhello") / "_data" / "firmware"
         candidate_path = data_dir / filename  # type: ignore[operator]
-        # resources.files returns a Traversable; check if the file exists
         if hasattr(candidate_path, "is_file") and candidate_path.is_file():
             resolved = Path(str(candidate_path))
             logger.info("Found firmware in package data: %s", resolved)
@@ -60,7 +74,36 @@ def get_firmware_path(board: BoardVariant, search_dir: Path | None = None) -> Pa
         logger.info("Found firmware (dev fallback): %s", candidate)
         return candidate
 
-    logger.warning("Firmware not found for %s (searched: %s)", board.value, filename)
+    return None
+
+
+def get_firmware_path(board: BoardVariant, search_dir: Path | None = None) -> Path | None:
+    """Find the UF2 firmware file for a specific board variant.
+
+    Since BOOTSEL mode can't distinguish W from non-W, this also checks
+    sibling variants on the same chip. A ``pywinhello_pico_w.uf2`` works
+    for both Pico and Pico W (the firmware auto-detects WiFi at runtime).
+
+    Args:
+        board: Target board variant.
+        search_dir: Explicit directory to search first. If ``None``,
+            falls through to package data and dev fallback.
+
+    Returns:
+        Path to the .uf2 file, or ``None`` if not found.
+    """
+    # Try exact match first, then same-chip siblings
+    for variant in _same_chip_variants(board):
+        filename = f"pywinhello_{variant.value}.uf2"
+        result = _search_firmware(filename, search_dir)
+        if result is not None:
+            return result
+
+    logger.warning(
+        "Firmware not found for %s (searched all %s variants)",
+        board.value,
+        "RP2350" if board in (BoardVariant.PICO_2, BoardVariant.PICO_2_W) else "RP2040",
+    )
     return None
 
 

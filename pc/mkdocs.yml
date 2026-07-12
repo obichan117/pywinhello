@@ -25,6 +25,7 @@ nav:
   - Home: index.md
   - Quick Start: quickstart.md
   - Hardware Setup: hardware.md
+  - Update Workflow: updates.md
   - API Reference: api.md
 
 plugins:
@@ -41,6 +42,10 @@ plugins:
 markdown_extensions:
   - admonition
   - pymdownx.highlight
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true

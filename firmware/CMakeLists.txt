@@ -10,6 +10,23 @@ set(CMAKE_CXX_STANDARD 17)
 
 pico_sdk_init()
 
+# ── LittleFS (flash filesystem) ─────────────────────────────────────
+
+include(FetchContent)
+FetchContent_Declare(
+    littlefs
+    GIT_REPOSITORY https://github.com/littlefs-project/littlefs.git
+    GIT_TAG        v2.9.3
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(littlefs)
+
+add_library(littlefs_lib STATIC
+    ${littlefs_SOURCE_DIR}/lfs.c
+    ${littlefs_SOURCE_DIR}/lfs_util.c
+)
+target_include_directories(littlefs_lib PUBLIC ${littlefs_SOURCE_DIR})
+
 # ── Source files ──────────────────────────────────────────────────────
 
 add_executable(pywinhello_firmware
@@ -37,6 +54,7 @@ target_link_libraries(pywinhello_firmware
     hardware_flash
     hardware_sync
     pico_mbedtls
+    littlefs_lib
 )
 
 # ── TinyUSB configuration ────────────────────────────────────────────
@@ -106,3 +124,59 @@ target_compile_options(pywinhello_firmware PRIVATE
 # ── Generate UF2 output ──────────────────────────────────────────────
 
 pico_add_extra_outputs(pywinhello_firmware)
+
+# ── Minimal USB test firmware ───────────────────────────────────────
+#
+# Bare-bones CDC serial using SDK's pico_stdio_usb (no custom TinyUSB).
+# Used to verify USB hardware works before debugging custom descriptors.
+
+add_executable(test_usb_minimal
+    src/test_usb_minimal.c
+)
+
+target_link_libraries(test_usb_minimal
+    pico_stdlib
+)
+
+pico_enable_stdio_usb(test_usb_minimal 1)
+pico_enable_stdio_uart(test_usb_minimal 0)
+
+if(_WIFI_ENABLED)
+    target_link_libraries(test_usb_minimal
+        pico_cyw43_arch_none
+    )
+endif()
+
+pico_add_extra_outputs(test_usb_minimal)
+
+# ── Custom CDC-only test firmware ───────────────────────────────────
+#
+# Uses our own tusb_config.h + descriptors (CDC only, no HID).
+# Tests whether our custom TinyUSB configuration works at all.
+
+add_executable(test_usb_custom_cdc
+    src/test_usb_custom_cdc.c
+)
+
+# Use a separate include dir with CDC-only tusb_config.h (no HID).
+# Must come BEFORE the main include dir so this tusb_config.h wins.
+target_include_directories(test_usb_custom_cdc BEFORE PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include_test_cdc
+)
+
+target_link_libraries(test_usb_custom_cdc
+    pico_stdlib
+    tinyusb_device
+    tinyusb_board
+)
+
+pico_enable_stdio_usb(test_usb_custom_cdc 0)
+pico_enable_stdio_uart(test_usb_custom_cdc 0)
+
+if(_WIFI_ENABLED)
+    target_link_libraries(test_usb_custom_cdc
+        pico_cyw43_arch_none
+    )
+endif()
+
+pico_add_extra_outputs(test_usb_custom_cdc)

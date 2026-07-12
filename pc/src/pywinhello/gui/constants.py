@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+# Day keys are owned by core.schedule_service (single source of truth); re-exported
+# here so existing GUI imports keep working.
+from pywinhello.core.schedule_service import DAY_KEYS, DEFAULT_DAYS
+
 # PIN validation
 MIN_PIN_LENGTH = 4
 
-# Day keys (short names used in config and i18n)
-DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-DEFAULT_DAYS = ["mon", "tue", "wed", "thu", "fri"]
+__all__ = ["DAY_KEYS", "DEFAULT_DAYS", "MIN_PIN_LENGTH", "validate_pin"]
 
 
 def validate_pin(pin: str, confirm: str | None = None) -> str | None:

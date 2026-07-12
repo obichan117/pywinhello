@@ -23,6 +23,7 @@
 #include "hardware/flash.h"
 #include "hardware/sync.h"
 #include "hardware/watchdog.h"
+#include "hardware/watchdog.h"
 
 #include <string.h>
 #include <stdio.h>

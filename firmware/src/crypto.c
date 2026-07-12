@@ -256,10 +256,10 @@ bool crypto_sha256(const uint8_t *data, size_t len, uint8_t *hash) {
     mbedtls_sha256_context ctx;
     mbedtls_sha256_init(&ctx);
 
-    int ret = mbedtls_sha256_starts(&ctx, 0);  /* 0 = SHA-256 (not 224) */
-    if (ret == 0) ret = mbedtls_sha256_update(&ctx, data, len);
-    if (ret == 0) ret = mbedtls_sha256_finish(&ctx, hash);
+    mbedtls_sha256_starts(&ctx, 0);  /* 0 = SHA-256 (not 224) */
+    mbedtls_sha256_update(&ctx, data, len);
+    mbedtls_sha256_finish(&ctx, hash);
 
     mbedtls_sha256_free(&ctx);
-    return (ret == 0);
+    return true;
 }

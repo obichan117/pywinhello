@@ -211,7 +211,7 @@ class MonitorService:
             whitelist = AppWhitelist.from_pico_config(self._config)
             self._hello_detector = HelloDetector(
                 on_hello=protocol.hello,
-                on_escape=lambda: protocol.send(Command.PRESS, "ESCAPE"),
+                on_escape=lambda: None if protocol.send(Command.PRESS, "ESCAPE") else None,
                 whitelist=whitelist,
                 on_new_app=self._on_new_app_discovered,
             )

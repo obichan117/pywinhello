@@ -27,12 +27,35 @@ The installer places:
 
 The settings app opens automatically after install:
 
-1. **Device detection** — plug in Pico (BOOTSEL mode for first flash, or already flashed)
+1. **Device detection** — just plug in the Pico. The wizard handles everything:
+    - Brand new Pico? Firmware is flashed automatically (no button presses needed)
+    - Already has pywinhello? Checks for updates and applies them over serial
 2. **Typing test** — Notepad opens, Pico types test string, speed auto-calibrated
 3. **PIN registration** — enter Windows PIN twice, stored encrypted on Pico only
 4. **Schedule** — set wake time and days (default: weekdays 07:45)
 
 Done. The monitor runs silently in the background. Plug in = armed, unplug = disarmed.
+
+!!! note "Upgrading from old firmware?"
+    If your Pico is already running old pywinhello firmware or other software
+    (MicroPython, CircuitPython, Arduino), the wizard will try to update
+    automatically. If it can't, you'll be asked to do a one-time manual
+    re-flash — see [Manual re-flash](#manual-re-flash-one-time-if-needed) below.
+
+### Manual re-flash (one-time, if needed)
+
+The setup wizard will tell you if this step is needed. It only happens once —
+after this, all future updates are automatic.
+
+1. **Unplug** the Pico from your computer
+2. **Find the small white button** on the Pico board
+3. **Press and hold** that button — don't let go yet
+4. **While still holding the button**, plug the USB cable back in
+5. **Let go** of the button
+6. A **new USB drive** should appear on your computer
+7. **Click "Detect Again"** in the setup wizard — it will flash automatically
+
+After this, you'll never need to do this again.
 
 ## Developer Setup
 

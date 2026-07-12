@@ -18,6 +18,7 @@ import customtkinter as ctk
 
 from pywinhello.gui.i18n import detect_default_locale, get_locale, set_locale, t
 from pywinhello.serial.device import PicoDevice
+from pywinhello.serial.protocol import SerialProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -87,35 +88,12 @@ class _PicoConnection:
                 raise ConnectionError("Pico is not connected")
             self._device.protocol.set_config(config)
 
-    def send_command(self, command: str) -> str | None:
-        """Send a raw command string to the Pico. Returns raw response or None.
-
-        Provides backward compatibility for SettingsPanel and other code
-        that uses the raw string-based command interface.
-        """
+    @property
+    def protocol(self) -> SerialProtocol:
         with self._lock:
             if self._device is None or not self._device.is_connected:
-                return None
-            try:
-                from pywinhello.serial.protocol import Command
-
-                # Parse "COMMAND:payload" format
-                if ":" in command:
-                    cmd_name, payload = command.split(":", 1)
-                else:
-                    cmd_name, payload = command, None
-
-                try:
-                    cmd = Command(cmd_name)
-                except ValueError:
-                    logger.debug("Unknown command: %s", cmd_name)
-                    return None
-
-                resp = self._device.protocol.send(cmd, payload)
-                return resp.raw
-            except Exception as e:
-                logger.debug("Command failed: %s", e)
-                return None
+                raise ConnectionError("Pico is not connected")
+            return self._device.protocol
 
     def close(self) -> None:
         with self._lock:
@@ -305,7 +283,7 @@ class App(ctk.CTk):
 
         panel = SettingsPanel(
             self._content,
-            send_command=self._pico.send_command,
+            pico=self._pico,
             on_run_wizard=self._show_wizard,
             on_test=self._on_run_test,
         )

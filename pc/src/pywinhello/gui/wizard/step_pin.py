@@ -4,16 +4,13 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
+from pywinhello.core import register_pin
 from pywinhello.gui.constants import validate_pin
 from pywinhello.gui.i18n import t
 from pywinhello.gui.wizard.base import WizardStep
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +155,7 @@ class PinStep(WizardStep):
 
             with SerialProtocol(port=port) as proto:
                 try:
-                    proto.setup_pin(pin)
+                    register_pin(proto, pin)
                     self.frame.after(0, self._on_pin_success)
                 except RuntimeError as e:
                     self.frame.after(

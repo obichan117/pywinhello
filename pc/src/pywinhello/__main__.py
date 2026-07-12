@@ -1,27 +1,15 @@
-"""Entry point for ``python -m pywinhello`` (monitor service).
+"""Entry point for ``python -m pywinhello`` — delegates to the Typer CLI.
 
-Used by PyInstaller to create the background process executable.
+The monitor service itself (formerly run here directly) is now `pywinhello
+serve`. The packaged pywinhello-monitor.exe still builds from
+monitor/service.py directly and does not go through this module.
 """
 
-import logging
+from pywinhello.cli import app
 
 
 def main() -> None:
-    """Start the monitor service."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(name)s %(levelname)s %(message)s",
-    )
-
-    from pywinhello.monitor import MonitorService
-
-    service = MonitorService()
-    try:
-        service.start()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        service.stop()
+    app()
 
 
 if __name__ == "__main__":

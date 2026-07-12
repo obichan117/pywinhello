@@ -35,7 +35,13 @@
 
 #include "pico/stdlib.h"
 #include "pico/unique_id.h"
+#include "pico/bootrom.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
+
+#ifdef PYWINHELLO_HAS_CYW43
+#include "pico/cyw43_arch.h"
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -191,6 +197,21 @@ static void update_uptime(void) {
     }
 }
 
+/* ── Yield to USB during init ─────────────────────────────────────── */
+
+/*
+ * USB enumeration requires tud_task() to process host descriptor
+ * requests. Call this between init steps so enumeration can complete
+ * even if initialization takes a while (e.g., first-boot LittleFS
+ * format erases 64 flash sectors with interrupts disabled).
+ */
+static void usb_yield(void) {
+    for (int i = 0; i < 10; i++) {
+        tud_task();
+        sleep_ms(1);
+    }
+}
+
 /* ── Main ─────────────────────────────────────────────────────────── */
 
 int main(void) {
@@ -198,20 +219,42 @@ int main(void) {
     memset(&g_state, 0, sizeof(g_state));
     g_state.device = DEVICE_UNKNOWN;
 
-    /* Basic Pico SDK init (clocks, GPIO) */
-    stdio_init_all();
+    /* Board-level init (clocks, GPIO) — matches TinyUSB BSP pattern */
+    board_init();
 
-    /* Initialize TinyUSB device stack */
-    tusb_init();
+    /* Initialize TinyUSB device stack.
+     * dcd_init() handles VBUS detect override, USB PHY muxing,
+     * and D+ pull-up internally. */
+    tud_init(BOARD_TUD_RHPORT);
+
+    /*
+     * Wait for USB enumeration with auto-BOOTSEL fallback.
+     * If the host doesn't mount us within 8 seconds, reboot into
+     * BOOTSEL so the user can reflash without holding the button.
+     */
+    for (int i = 0; i < 800 && !tud_mounted(); i++) {
+        tud_task();
+        sleep_ms(10);
+    }
+    if (!tud_mounted()) {
+        reset_usb_boot(0, 0);
+        /* Never reached */
+    }
+
+    /* ── USB is live — proceed with subsystem init ────────────── */
+
+    bool has_wifi = wifi_detect();
+    usb_yield();
 
     /* Crypto must come before storage (for PIN encryption) */
     crypto_init();
+    usb_yield();
 
-    /* Mount filesystem */
+    /* Mount filesystem (first boot: formats flash — slow) */
     if (!storage_init()) {
-        /* Fatal: cannot access flash storage.
-         * Continue with defaults — serial will still work. */
+        /* Cannot access flash storage — continue with defaults */
     }
+    usb_yield();
 
     /* Load config from flash */
     storage_load_config();
@@ -222,8 +265,7 @@ int main(void) {
     /* Check if PIN is stored */
     g_state.pin_stored = storage_has_pin();
 
-    /* Auto-detect WiFi hardware */
-    bool has_wifi = wifi_detect();
+    usb_yield();
 
     /* Update device string in config */
     switch (g_state.device) {
@@ -237,6 +279,7 @@ int main(void) {
     /* WiFi: connect and sync NTP (Pico W only) */
     if (has_wifi) {
         wifi_connect();
+        usb_yield();
         if (wifi_is_connected()) {
             wifi_ntp_sync();
         }
