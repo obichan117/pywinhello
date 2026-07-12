@@ -38,6 +38,8 @@ jobs:
   build-firmware:
     name: Build Firmware
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -75,6 +77,27 @@ jobs:
             firmware/build/*.uf2
           retention-days: 30
 
+      # Keep the committed PC-side bundle in lockstep with the firmware source so
+      # local `pywinhello setup` and the packaged installer never flash a stale
+      # .uf2 (the exact failure that shipped pre-USB-fix firmware to a device).
+      - name: Refresh bundled firmware in PC package
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        run: |
+          dest=pc/src/pywinhello/_data/firmware
+          mkdir -p "$dest"
+          for board in pico pico_w pico2 pico2_w; do
+            cp "firmware/build/pywinhello_${board}.uf2" "$dest/pywinhello_${board}.uf2"
+          done
+          if git diff --quiet -- "$dest"; then
+            echo "Bundled firmware already current — nothing to commit."
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add "$dest"
+            git commit -m "chore: refresh bundled firmware .uf2 from source [skip ci]"
+            git push
+          fi
+
   build-installer:
     name: Build Installer
     needs: [test-pc, build-firmware]
@@ -93,6 +116,24 @@ jobs:
         working-directory: pc
         run: uv sync --extra dev
 
+      # Firmware must be bundled into the package BEFORE PyInstaller freezes the
+      # exes, so the shipped CLI flashes current firmware regardless of what the
+      # committed _data/firmware/ copy happens to be.
+      - name: Download firmware artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: firmware
+          path: firmware/build/
+
+      - name: Bundle fresh firmware into PC package
+        shell: bash
+        run: |
+          dest=pc/src/pywinhello/_data/firmware
+          mkdir -p "$dest"
+          for board in pico pico_w pico2 pico2_w; do
+            cp "firmware/build/pywinhello_${board}.uf2" "$dest/pywinhello_${board}.uf2"
+          done
+
       - name: Build monitor executable
         working-directory: pc
         run: |
@@ -107,18 +148,12 @@ jobs:
       - name: Build CLI executable
         working-directory: pc
         run: |
-          uv run pyinstaller --onefile --name pywinhello --icon ../installer/assets/pywinhello.ico src/pywinhello/__main__.py
+          uv run pyinstaller --onefile --name pywinhello --icon ../installer/assets/pywinhello.ico --add-data "src/pywinhello/_data;pywinhello/_data" src/pywinhello/__main__.py
 
       - name: Build tray executable
         working-directory: pc
         run: |
           uv run pyinstaller --onefile --noconsole --name pywinhello-tray --icon ../installer/assets/pywinhello.ico src/pywinhello/tray/app.py
-
-      - name: Download firmware artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: firmware
-          path: firmware/build/
 
       - name: Copy dist files
         run: |

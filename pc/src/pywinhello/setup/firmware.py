@@ -42,6 +42,18 @@ def _search_firmware(filename: str, search_dir: Path | None) -> Path | None:
             logger.info("Found firmware: %s", candidate)
             return candidate
 
+    # 1b. Local firmware build output (dev): <repo>/firmware/build/. Preferred over
+    # the committed bundle so a fresh `make` in firmware/ is used immediately and a
+    # stale committed .uf2 can never silently win during development.
+    try:
+        build_dir = Path(__file__).parents[4] / "firmware" / "build"
+        candidate = build_dir / filename
+        if candidate.exists():
+            logger.info("Found firmware in local build output: %s", candidate)
+            return candidate
+    except IndexError:
+        pass
+
     # 2. Package data
     try:
         import importlib.resources as resources
