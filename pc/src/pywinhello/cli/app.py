@@ -146,8 +146,9 @@ def doctor() -> None:
     report = gather_status()
     device = detect()
 
+    firmware_present = device.state == DeviceState.RUNNING_PYWINHELLO
     firmware_outdated = (
-        device.state == DeviceState.RUNNING_PYWINHELLO
+        firmware_present
         and device.firmware_version is not None
         and compare_versions(device.firmware_version, BUNDLED_FW_VERSION) < 0
     )
@@ -155,14 +156,18 @@ def doctor() -> None:
     checks: list[tuple[str, bool, str]] = [
         (
             f"Firmware present ({device.state.value})",
-            device.state == DeviceState.RUNNING_PYWINHELLO,
+            firmware_present,
             "Run 'pywinhello setup' to flash firmware.",
         ),
-        (
+    ]
+    # "Up to date" is only meaningful once firmware is actually running.
+    if firmware_present:
+        checks.append((
             f"Firmware up to date (v{device.firmware_version or '?'})",
             not firmware_outdated,
             "Run 'pywinhello setup' to update firmware.",
-        ),
+        ))
+    checks += [
         ("PIN set", report.pin_set, "Run 'pywinhello pin set' to register a PIN."),
         (
             "Schedule armed",
